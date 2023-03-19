@@ -10,6 +10,7 @@ Firmware development for exo-sensing project
 
 ## Dev:
 - Humidity and Temperature Sensor (Integrated) HS3003
+- - Reading sensor and printing on serial
 
 Development on Arduino IDE 2.0
 Arduino NANO 33 Sense Rev 2 development board
