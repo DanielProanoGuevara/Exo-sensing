@@ -8,5 +8,9 @@ Firmware development for exo-sensing project
 - _Author:_ Daniel Proaño G.
 - _Supervisors:_ Hugo Silva, Marcelino Santos
 
-Development on platformIO
-ESP32 S2 Saola 1 development board
+## Dev:
+- Humidity and Temperature Sensor (Integrated) HS3003
+
+Development on Arduino IDE 2.0
+Arduino NANO 33 Sense Rev 2 development board
+Based on nRF52840
