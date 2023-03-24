@@ -102,43 +102,28 @@ void loop() {
   int RGBGreen = 0;
   int RGBBlue = 0;
 
-  // listen for BLE peripherals to connect:
-  BLEDevice central = BLE.central();
+  // poll for BLE events
+  BLE.poll();
+  
+  
+  if (Red.written()){
+    RGBRed = Red.value();
+    Serial.print("Got value on Red of: ");
+    Serial.println(RGBRed);
+    analogWrite(LEDR, 0xFF - RGBRed);
+  }
 
-  // if a central is connected to peripheral:
-  if (central) {
-    Serial.print("Connected to central: ");
-    // print the central's MAC address:
-    Serial.println(central.address());
+  if (Green.written()){
+    RGBGreen = Green.value();
+    Serial.print("Got value on Green of: ");
+    Serial.println(RGBGreen);
+    analogWrite(LEDG, 0xFF - RGBGreen);
+  }
 
-    // while the centras is still connected to peripheral:
-    while (central.connected()){
-      // if the remote device wrote to the characteristic,
-      // use the value to control the LED:
-      if (Red.written()){
-        RGBRed = Red.value();
-        Serial.print("Got value on Red of: ");
-        Serial.println(RGBRed);
-        analogWrite(LEDR, 0xFF - RGBRed);
-      }
-
-      if (Green.written()){
-        RGBGreen = Green.value();
-        Serial.print("Got value on Green of: ");
-        Serial.println(RGBGreen);
-        analogWrite(LEDG, 0xFF - RGBGreen);
-      }
-
-      if (Blue.written()){
-        RGBBlue = Blue.value();
-        Serial.print("Got value on Blue of: ");
-        Serial.println(RGBBlue);
-        analogWrite(LEDB, 0xFF - RGBBlue);
-      }
-    }
-
-    // when the centra disconnects, print it out:
-    Serial.print("Disconnected from central: ");
-    Serial.println(central.address());
+  if (Blue.written()){
+    RGBBlue = Blue.value();
+    Serial.print("Got value on Blue of: ");
+    Serial.println(RGBBlue);
+    analogWrite(LEDB, 0xFF - RGBBlue);
   }
 }
