@@ -99,28 +99,39 @@ void setup() {
 
 void loop() {
 
-  // poll for BLE events
-  BLE.poll();
 
-  long currentMillis = millis();
-  // if 1s has passed, check again the sensors
-  if (currentMillis - previousMillis >= 1000){
-    previousMillis = currentMillis;
-    updatePressure();
-    updateTemperature();
-    updateHumidity();
-  }
+  // check for BLE central
+  BLEDevice central = BLE.central();
 
-  if (Red.written()){
-    updateRed();
-  }
+  // if central is connected to peripheral:
+  if (central){
+    Serial.print("Connected to central: ");
+    // Print central's MAC address:
+    Serial.println(central.address());
 
-  if (Green.written()){
-    updateGreen();
-  }
+    // Poll/transmit only when connected:
+    while(central.connected()){
+        long currentMillis = millis();
+        // if 5s has passed, check again the sensors
+        if (currentMillis - previousMillis >= 5000){
+          previousMillis = currentMillis;
+          updatePressure();
+          updateTemperature();
+          updateHumidity();
+        }
 
-  if (Blue.written()){
-    updateBlue();
+        if (Red.written()){
+          updateRed();
+        }
+
+        if (Green.written()){
+          updateGreen();
+        }
+
+        if (Blue.written()){
+          updateBlue();
+        }
+    }
   }
 }
 
@@ -168,5 +179,5 @@ void updateHumidity(){
   Serial.print("Current humidity: ");
   Serial.print(humidity);
   Serial.println(" %");
-  Ambient_Pressure.writeValue(humidity);
+  Ambient_Humidity.writeValue(humidity);
 }
