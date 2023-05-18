@@ -1,6 +1,7 @@
 #include "nrf_delay.h"
 #include "nrf_gpio.h"
 
+// NRF_GPIO_PIN_MAP(port,pin) creates something that NRF can understand
 #define LED NRF_GPIO_PIN_MAP(1,12)
 #define LED_IN NRF_GPIO_PIN_MAP(0,13)
 //P0.13 -- BuiltInLED -- GPIO1 -- Pin1
