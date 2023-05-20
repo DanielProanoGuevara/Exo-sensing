@@ -1,5 +1,8 @@
-#include "nrf_delay.h"
+#include <nrfx.h>
+#include <nrf.h>
 #include "nrf_gpio.h"
+#include "nrf_delay.h"
+
 
 // NRF_GPIO_PIN_MAP(port,pin) creates something that NRF can understand
 #define BUTTON NRF_GPIO_PIN_MAP(1,12)
@@ -8,19 +11,31 @@
 //P1.12 -- D3 -- GPIO21 -- 21
 
 
-void setup() {
-  nrf_gpio_cfg_output(LED_IN);
-  // PIN, PULL_CONFIG (NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_PULLDOWN, NRF_GPIO_PIN_NOPULL)
-  nrf_gpio_cfg_input(BUTTON, NRF_GPIO_PIN_PULLUP);
 
-  nrf_gpio_pin_clear(LED_IN);
+
+
+
+
+
+void gpio_init(){
+  NRF_GPIO->PIN_CNF[LED_IN] = (GPIO_PIN_CNF_DIR_Output << GPIO_PIN_CNF_DIR_Pos)|
+                              (GPIO_PIN_CNF_INPUT_Disconnect << GPIO_PIN_CNF_INPUT_Pos)|
+                              (GPIO_PIN_CNF_PULL_Disabled << GPIO_PIN_CNF_PULL_Pos)|
+                              (GPIO_PIN_CNF_DRIVE_S0S1 << GPIO_PIN_CNF_DRIVE_Pos)|
+                              (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos);
+}
+
+
+void setup() {
+  
+  gpio_init();
+  NRF_GPIO->OUTSET = (1UL << LED_IN);
 
 }
 
 void loop() {
-  if (nrf_gpio_pin_read(BUTTON) == 0) {
-    nrf_gpio_pin_set(LED_IN);
-    while(nrf_gpio_pin_read(BUTTON) == 0); // Stay in this loop until the button is released
-    nrf_gpio_pin_clear(LED_IN);
-  } 
+  NRF_GPIO->OUTSET = (1UL << LED_IN);
+  nrf_delay_ms(500);
+  NRF_GPIO->OUTCLR = (1UL << LED_IN);
+  nrf_delay_ms(500);
 }
