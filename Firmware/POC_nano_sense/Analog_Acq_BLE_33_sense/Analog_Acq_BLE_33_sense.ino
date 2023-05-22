@@ -3,9 +3,6 @@
 #include "nrf_timer.h"
 
 
-// Timer settings
-const unsigned long timerInterval = 1000;  // 1 second interval
-
 // Flag to track LED state
 volatile bool ledState = false;
 
@@ -21,11 +18,11 @@ void setupTimer(){
   // Uses timer 4, since timer 1,2,3 are used in the BLE transactions
 
   // Disable interrupts before configuring
-  //NRF_TIMER4->INTENCLR = TIMER_INTENCLR_COMPARE0_Msk;
+  //NRF_TIMER4->INTENCLR = TIMER_INTENCLR_COMPARE0_Clear << TIMER_INTENCLR_COMPARE0_Pos;
 
   // Stop and clear the timer before using it
   NRF_TIMER4->TASKS_STOP = 1;
-  //NRF_TIMER4->TASKS_CLEAR = 1;
+  NRF_TIMER4->TASKS_CLEAR = 1;
 
 
   // Set up the timer interrupt
@@ -33,14 +30,11 @@ void setupTimer(){
   NRF_TIMER4->BITMODE = TIMER_BITMODE_BITMODE_16Bit;  // Set timer to 32-bit mode
   
   // Set the timer prescaler to achieve desired interval
-  // For example, with a 16 MHz clock, prescaler 4 gives a 1 microsecond resolution
-  NRF_TIMER4->PRESCALER = 4;
+  NRF_TIMER4->PRESCALER = 7;
   
   // Set the compare value to trigger the interrupt
   // The compare value depends on the desired interval and timer resolution
-  // For example, with a 1-second interval and 1 microsecond resolution,
-  // the compare value is (timerInterval * 1000) - 1
-  NRF_TIMER4->CC[0] = (timerInterval * 1000) - 1;
+  NRF_TIMER4->CC[0] = 0x270;
   
   // Enable the compare interrupt on CC[0]
   NRF_TIMER4->INTENSET = TIMER_INTENSET_COMPARE0_Set << TIMER_INTENSET_COMPARE0_Pos;
@@ -68,13 +62,8 @@ void setup() {
 }
 
 void loop() {
-  // Update the LED state
-  if (ledState) {
-    digitalWrite(LED_BUILTIN, HIGH);
-  } else {
-    digitalWrite(LED_BUILTIN, LOW);
-  }
-  //__WFE(); // Wait for event instruction (sleeps waiting for event)
+  
+  __WFE(); // Wait for event instruction (sleeps waiting for event)
 }
 
 // Timer interrupt service routine
@@ -84,5 +73,11 @@ extern "C" void TIMER4_IRQHandler_v(void) {
     NRF_TIMER4->EVENTS_COMPARE[0] = 0;  // Clear the event
     
     timerInterruptHandler();  // Call the interrupt handler function
+    // Update the LED state
+    if (ledState) {
+      digitalWrite(LED_BUILTIN, HIGH);
+    } else {
+      digitalWrite(LED_BUILTIN, LOW);
+    }
   }
 }
