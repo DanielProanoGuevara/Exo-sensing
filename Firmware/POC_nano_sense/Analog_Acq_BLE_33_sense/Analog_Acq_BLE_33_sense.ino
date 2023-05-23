@@ -9,7 +9,17 @@
 
 
 // Variables 
-float FSR1_raw = 0.0;
+int decimationCounter = 1;
+float FSR1_filt = 0.0;
+
+// Filter variables
+// *** FSR coefficients
+float B_FSR[7] = {0.00034054, 0.00204323, 0.00510806, 0.00681075, 0.00510806, 0.00204323, 0.00034054};
+float A_FSR[7] = {1.0,        -3.5794348, 5.65866717,-4.96541523, 2.52949491,-0.70527411, 0.08375648};
+float FSR1_x[7] = {0.0};
+float FSR1_y[7] = {0.0};
+
+
 
 // Interrupt-based analog acquisition
 volatile uint32_t Ain0_raw = 0;
@@ -87,9 +97,36 @@ void loop() {
     timerFlag = false;
     Ain0_raw = analogRead(Ain0);
     // convert uint to float Ain1_raw
-    FSR1_raw = Ain0_raw * (3.3 / 4096.0);
+    FSR1_x[0] = Ain0_raw * (3.3 / 4096.0); // Current input value
     //FIR_filter()
+    // calc. the output
+    FSR1_y[0] = (-A_FSR[1]*FSR1_y[1] - A_FSR[2]*FSR1_y[2] - A_FSR[3]*FSR1_y[3] - A_FSR[4]*FSR1_y[4] - A_FSR[5]*FSR1_y[5] - A_FSR[6]*FSR1_y[6]
+                + B_FSR[0]*FSR1_x[0] + B_FSR[1]*FSR1_x[1] + B_FSR[2]*FSR1_x[2] + B_FSR[3]*FSR1_x[3] + B_FSR[4]*FSR1_x[4] + B_FSR[5]*FSR1_x[5] + B_FSR[6]*FSR1_x[6]);
+    // Propagate inputs
+    FSR1_x[6] = FSR1_x[5];
+    FSR1_x[5] = FSR1_x[4];
+    FSR1_x[4] = FSR1_x[3];
+    FSR1_x[3] = FSR1_x[2];
+    FSR1_x[2] = FSR1_x[1];
+    FSR1_x[1] = FSR1_x[0];
+    // Propagate outpus
+    FSR1_y[6] = FSR1_y[5];
+    FSR1_y[5] = FSR1_y[4];
+    FSR1_y[4] = FSR1_y[3];
+    FSR1_y[3] = FSR1_y[2];
+    FSR1_y[2] = FSR1_y[1];
+    FSR1_y[1] = FSR1_y[0];
+    
     //Decimation?()
+    if(decimationCounter < 10){
+      decimationCounter ++;
+      //skip 9 samples
+      return;
+    }
+    // Restart decimator counter
+    decimationCounter = 1;
+    FSR1_filt = FSR1_y[0];
+
     //Moving_average()
     digitalWrite(LED_BUILTIN, LOW);
   }
