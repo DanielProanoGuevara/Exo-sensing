@@ -1,16 +1,27 @@
+#include "Arduino.h"
 #include <nrfx.h>
 #include <nrf.h>
 #include "nrf_timer.h"
 
 
-// Flag to track LED state
-volatile bool ledState = false;
+// Pin  declarations
+#define Ain0 A0
+
+
+// Variables 
+float FSR1_raw = 0.0;
+
+// Interrupt-based analog acquisition
+volatile uint32_t Ain0_raw = 0;
+
+// Timer interrupt flag
+volatile bool timerFlag = false;
 
 // Timer interrupt handler
 void timerInterruptHandler() {
-  ledState = !ledState;  // Toggle LED state
+  digitalWrite(LED_BUILTIN, HIGH);
+  timerFlag = true;
 }
-
 
 
 // Initialize the timer
@@ -51,18 +62,38 @@ void setupTimer(){
 }
 
 
-
-
 void setup() {
+  // initialize serial communications at  bps:
+  Serial.begin(115200);
+  while (!Serial);
+  Serial.println("Serial active");
+
+  // analog configuration
+  analogReadResolution(12);
+  Serial.println("Analog resolution modified");
+
   // Initializes the debug pin
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
+  
   // Initializes the timer
   setupTimer();
+  Serial.println("Timer Active");
 }
 
 void loop() {
-  
+  // Process the interruption on runtime
+  if(timerFlag){
+    timerFlag = false;
+    Ain0_raw = analogRead(Ain0);
+    // convert uint to float Ain1_raw
+    FSR1_raw = Ain0_raw * (3.3 / 4096.0);
+    //FIR_filter()
+    //Decimation?()
+    //Moving_average()
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+
   __WFE(); // Wait for event instruction (sleeps waiting for event)
 }
 
@@ -73,11 +104,5 @@ extern "C" void TIMER4_IRQHandler_v(void) {
     NRF_TIMER4->EVENTS_COMPARE[0] = 0;  // Clear the event
     
     timerInterruptHandler();  // Call the interrupt handler function
-    // Update the LED state
-    if (ledState) {
-      digitalWrite(LED_BUILTIN, HIGH);
-    } else {
-      digitalWrite(LED_BUILTIN, LOW);
-    }
   }
 }
