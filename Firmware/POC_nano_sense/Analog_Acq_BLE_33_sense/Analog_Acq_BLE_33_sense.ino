@@ -2,15 +2,28 @@
 #include <nrfx.h>
 #include <nrf.h>
 #include "nrf_timer.h"
+#include "nrf_delay.h"
+
+#include "SPI.h"
+
 
 
 // Pin  declarations
 #define Ain0 A0
+#define DEBUG 2
+#define sync 5
+
+
 
 
 // Variables 
 int decimationCounter = 1;
 float FSR1_filt = 0.0;
+
+volatile uint16_t DAC_o = 0;
+
+
+SPISettings mySettings(4000000, MSBFIRST, SPI_MODE3);
 
 // Filter variables
 // *** FSR coefficients
@@ -29,7 +42,7 @@ volatile bool timerFlag = false;
 
 // Timer interrupt handler
 void timerInterruptHandler() {
-  digitalWrite(LED_BUILTIN, HIGH);
+  digitalWrite(DEBUG, HIGH);
   timerFlag = true;
 }
 
@@ -73,22 +86,22 @@ void setupTimer(){
 
 
 void setup() {
-  // initialize serial communications at  bps:
-  Serial.begin(115200);
-  while (!Serial);
-  Serial.println("Serial active");
-
   // analog configuration
   analogReadResolution(12);
-  Serial.println("Analog resolution modified");
 
   // Initializes the debug pin
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);
+  pinMode(DEBUG, OUTPUT);
+  digitalWrite(DEBUG, HIGH);
+
+  // Initializes SPI for the DAC
+  pinMode(3, OUTPUT); // CS
+  SPI.begin();
+  SPI.beginTransaction(mySettings);
+  SPI.endTransaction();
   
+
   // Initializes the timer
   setupTimer();
-  Serial.println("Timer Active");
 }
 
 void loop() {
@@ -97,7 +110,7 @@ void loop() {
     timerFlag = false;
     Ain0_raw = analogRead(Ain0);
     // convert uint to float Ain1_raw
-    FSR1_x[0] = Ain0_raw * (3.3 / 4096.0); // Current input value
+    FSR1_x[0] = Ain0_raw * (3.3 / 4095.0); // Current input value
     //FIR_filter()
     // calc. the output
     FSR1_y[0] = (-A_FSR[1]*FSR1_y[1] - A_FSR[2]*FSR1_y[2] - A_FSR[3]*FSR1_y[3] - A_FSR[4]*FSR1_y[4] - A_FSR[5]*FSR1_y[5] - A_FSR[6]*FSR1_y[6]
@@ -117,18 +130,33 @@ void loop() {
     FSR1_y[2] = FSR1_y[1];
     FSR1_y[1] = FSR1_y[0];
     
+
+    // Set output
+    FSR1_filt = FSR1_y[0];
+    DAC_o = FSR1_filt * (4095.0 / 3.3);
+
+    
     //Decimation?()
-    if(decimationCounter < 10){
+    if(decimationCounter < 5){
       decimationCounter ++;
       //skip 9 samples
       return;
     }
     // Restart decimator counter
     decimationCounter = 1;
-    FSR1_filt = FSR1_y[0];
+    
+    // Enable DAC
+    SPI.begin();
+    digitalWrite(sync, LOW);
+    // Send data
+    SPI.transfer16(DAC_o);
+    // De-assert DAC
+    digitalWrite(sync, HIGH);
+    SPI.endTransaction();
+
 
     //Moving_average()
-    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(DEBUG, LOW);
   }
 
   __WFE(); // Wait for event instruction (sleeps waiting for event)
