@@ -18,24 +18,26 @@
 
 // Variables 
 int decimationCounter = 1;
-float FSR1_filt = 0.0;
+float FSR1_filt = 0.0f;
 
 volatile uint16_t DAC_o = 0;
 
 
-SPISettings mySettings(4000000, MSBFIRST, SPI_MODE3);
+SPISettings mySettings(16000000, MSBFIRST, SPI_MODE3);
 
 // Filter variables
 // *** IIR FSR coefficients
-float B_FSR[7] = {0.00034054, 0.00204323, 0.00510806, 0.00681075, 0.00510806, 0.00204323, 0.00034054};
-float A_FSR[7] = {1.0,        -3.5794348, 5.65866717,-4.96541523, 2.52949491,-0.70527411, 0.08375648};
+float B_FSR[7] = {0.00034054f, 0.00204323f, 0.00510806f, 0.00681075f, 0.00510806f, 0.00204323f, 0.00034054f};
+float A_FSR[7] = {1.0f,        -3.5794348f, 5.65866717f,-4.96541523f, 2.52949491f,-0.70527411f, 0.08375648f};
 
-float FSR1_x[7] = {0.0}; // Input memory buffer
-float FSR1_y[7] = {0.0}; // Output memory buffer
+float FSR1_x[7] = {0.0f}; // Input memory buffer
+float FSR1_y[7] = {0.0f}; // Output memory buffer
 
 // *** MA ring buffer and variables
-float MA_ring_buffer_FSR1 [20] = {0}; // FSR1 moving average ring buffer
-float acc_FSR1 = 0; // FSR1 accumulator
+const uint8_t M = 20; // Window size
+float MA_ring_buffer_FSR1 [M] = {0.0f}; // FSR1 moving average ring buffer
+float acc_FSR1 = 0.0f; // FSR1 accumulator
+float average_FSR1 = 0.0f;
 uint8_t RB_i_FSR1 = 0; // FSR1 Ring buffer iterator
 
 
@@ -51,18 +53,49 @@ void timerInterruptHandler() {
   timerFlag = true;
 }
 
+/******* DSP functions ********/
+void movingAverage( float ringBuffer[],
+                    uint8_t win_size,
+                    uint8_t &i,
+                    float &acc,
+                    float acq,
+                    float &average){
 
-
-float moving_average(float acq_val){
-  float average;
-  if (RB_i_FSR1 == 20) RB_i_FSR1 = 0; // Reset the iterator
-  acc_FSR1 -= MA_ring_buffer_FSR1[RB_i_FSR1]; // Remove the oldes element from the accumulator 
-  MA_ring_buffer_FSR1[RB_i_FSR1] = acq_val; // Update the newest value to the buffer
-  acc_FSR1 += acq_val; // Add the newest element to the accumulator
-  average = acc_FSR1 / 20; // cannot shift right since I'm working with float
-  RB_i_FSR1 ++; // Move the iterator
-  return average;
+  if (i == win_size) i = 0; // Resets the iterator
+  acc -= ringBuffer[i]; // Substracts the oldest element from the accumulator
+  ringBuffer[i] = acq; // Replaces the oldest element of the ring buffer with the new one
+  acc += acq; // Increses the accumulator with the new sample
+  average = acc / win_size; // Get the buffer average
+  i++; // Move the iterator
 }
+
+void IIR( uint16_t Ain,
+          float x[],
+          float y[],
+          float A[],
+          float B[]){
+  // Convert from uint16 to voltage value
+  x[0] = Ain * (3.3f / 4096.0f); // Current input value
+  
+  // calc. the output
+  y[0] = (- A[1]*y[1] - A[2]*y[2] - A[3]*y[3] - A[4]*y[4] - A[5]*y[5] - A[6]*y[6]
+          + B[0]*x[0] + B[1]*x[1] + B[2]*x[2] + B[3]*x[3] + B[4]*x[4] + B[5]*x[5] + B[6]*x[6]);
+  // Propagate inputs
+  x[6] = x[5];
+  x[5] = x[4];
+  x[4] = x[3];
+  x[3] = x[2];
+  x[2] = x[1];
+  x[1] = x[0];
+  // Propagate outpus
+  y[6] = y[5];
+  y[5] = y[4];
+  y[4] = y[3];
+  y[3] = y[2];
+  y[2] = y[1];
+  y[1] = y[0];
+}
+
 
 
 
@@ -128,43 +161,38 @@ void loop() {
   if(timerFlag){
     timerFlag = false;
     Ain0_raw = analogRead(Ain0);
-    // convert uint to float Ain1_raw
-    //FSR1_x[0] = Ain0_raw * (3.3 / 4095.0); // Current input value
-    FSR1_x[0] = Ain0_raw;
-    //FIR_filter()
-    // calc. the output
-    FSR1_y[0] = (-A_FSR[1]*FSR1_y[1] - A_FSR[2]*FSR1_y[2] - A_FSR[3]*FSR1_y[3] - A_FSR[4]*FSR1_y[4] - A_FSR[5]*FSR1_y[5] - A_FSR[6]*FSR1_y[6]
-                + B_FSR[0]*FSR1_x[0] + B_FSR[1]*FSR1_x[1] + B_FSR[2]*FSR1_x[2] + B_FSR[3]*FSR1_x[3] + B_FSR[4]*FSR1_x[4] + B_FSR[5]*FSR1_x[5] + B_FSR[6]*FSR1_x[6]);
-    // Propagate inputs
-    FSR1_x[6] = FSR1_x[5];
-    FSR1_x[5] = FSR1_x[4];
-    FSR1_x[4] = FSR1_x[3];
-    FSR1_x[3] = FSR1_x[2];
-    FSR1_x[2] = FSR1_x[1];
-    FSR1_x[1] = FSR1_x[0];
-    // Propagate outpus
-    FSR1_y[6] = FSR1_y[5];
-    FSR1_y[5] = FSR1_y[4];
-    FSR1_y[4] = FSR1_y[3];
-    FSR1_y[3] = FSR1_y[2];
-    FSR1_y[2] = FSR1_y[1];
-    FSR1_y[1] = FSR1_y[0];
-    
 
-    //Decimation?()
+    //IIR_filter
+    IIR(Ain0_raw, 
+        (float*) &FSR1_x,
+        (float*) &FSR1_y,
+        A_FSR,
+        B_FSR);
+        
+    //Decimation
     if(decimationCounter < 5){
       decimationCounter ++;
-      //skip 9 samples
+      //skip 5 samples
       return;
     }
     // Restart decimator counter
     decimationCounter = 1;
     
-    //Moving_average()
-    FSR1_filt = moving_average(FSR1_y[0]);
+    
+    //Moving_average
 
-    //DAC_o = FSR1_filt * (4095.0 / 3.3);
-    DAC_o = FSR1_filt;
+    movingAverage(  (float*) &MA_ring_buffer_FSR1,
+                    M,
+                    RB_i_FSR1,
+                    acc_FSR1,
+                    FSR1_y[0],
+                    average_FSR1);
+    
+
+    FSR1_filt = average_FSR1;
+
+    DAC_o = FSR1_filt * (4095.0 / 3.3);
+    //DAC_o = FSR1_filt;
 
 
     // Enable DAC
