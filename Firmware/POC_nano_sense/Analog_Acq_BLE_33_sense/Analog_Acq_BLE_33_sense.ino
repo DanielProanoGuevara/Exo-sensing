@@ -216,6 +216,8 @@ void loop() {
     IIR(NTC1_raw, (float*) &NTC1_x, (float*) &NTC1_y, A_FSR, B_FSR);
     IIR(Fluids1_raw, (float*) &Fluids1_x, (float*) &Fluids1_y, A_FSR, B_FSR);
         
+    
+    
     //Decimation
     if(decimationCounter < 5){
       decimationCounter ++;
@@ -223,7 +225,7 @@ void loop() {
       return;
     }
     // Restart decimator counter
-    decimationCounter = 1;
+    decimationCounter = 1; 
     
     
     //Moving_average // Compensates the operations
@@ -243,7 +245,7 @@ void loop() {
     FSR1_filt = average_FSR1;
 
     DAC_o = FSR1_filt * (4095.0f / 3.3f);
-    //DAC_o = FSR1_filt;
+    //DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
 
     // Enable DAC
     SPI.begin();
@@ -253,7 +255,6 @@ void loop() {
     // De-assert DAC
     digitalWrite(sync, HIGH);
     SPI.endTransaction();
-
 
     
     digitalWrite(DEBUG, LOW);
