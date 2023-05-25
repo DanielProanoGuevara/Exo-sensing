@@ -26,12 +26,17 @@ volatile uint16_t DAC_o = 0;
 SPISettings mySettings(4000000, MSBFIRST, SPI_MODE3);
 
 // Filter variables
-// *** FSR coefficients
+// *** IIR FSR coefficients
 float B_FSR[7] = {0.00034054, 0.00204323, 0.00510806, 0.00681075, 0.00510806, 0.00204323, 0.00034054};
 float A_FSR[7] = {1.0,        -3.5794348, 5.65866717,-4.96541523, 2.52949491,-0.70527411, 0.08375648};
-float FSR1_x[7] = {0.0};
-float FSR1_y[7] = {0.0};
 
+float FSR1_x[7] = {0.0}; // Input memory buffer
+float FSR1_y[7] = {0.0}; // Output memory buffer
+
+// *** MA ring buffer and variables
+float MA_ring_buffer_FSR1 [20] = {0}; // FSR1 moving average ring buffer
+float acc_FSR1 = 0; // FSR1 accumulator
+uint8_t RB_i_FSR1 = 0; // FSR1 Ring buffer iterator
 
 
 // Interrupt-based analog acquisition
@@ -45,6 +50,20 @@ void timerInterruptHandler() {
   digitalWrite(DEBUG, HIGH);
   timerFlag = true;
 }
+
+
+
+float moving_average(float acq_val){
+  float average;
+  if (RB_i_FSR1 == 20) RB_i_FSR1 = 0; // Reset the iterator
+  acc_FSR1 -= MA_ring_buffer_FSR1[RB_i_FSR1]; // Remove the oldes element from the accumulator 
+  MA_ring_buffer_FSR1[RB_i_FSR1] = acq_val; // Update the newest value to the buffer
+  acc_FSR1 += acq_val; // Add the newest element to the accumulator
+  average = acc_FSR1 / 20; // cannot shift right since I'm working with float
+  RB_i_FSR1 ++; // Move the iterator
+  return average;
+}
+
 
 
 // Initialize the timer
@@ -110,7 +129,8 @@ void loop() {
     timerFlag = false;
     Ain0_raw = analogRead(Ain0);
     // convert uint to float Ain1_raw
-    FSR1_x[0] = Ain0_raw * (3.3 / 4095.0); // Current input value
+    //FSR1_x[0] = Ain0_raw * (3.3 / 4095.0); // Current input value
+    FSR1_x[0] = Ain0_raw;
     //FIR_filter()
     // calc. the output
     FSR1_y[0] = (-A_FSR[1]*FSR1_y[1] - A_FSR[2]*FSR1_y[2] - A_FSR[3]*FSR1_y[3] - A_FSR[4]*FSR1_y[4] - A_FSR[5]*FSR1_y[5] - A_FSR[6]*FSR1_y[6]
@@ -131,11 +151,6 @@ void loop() {
     FSR1_y[1] = FSR1_y[0];
     
 
-    // Set output
-    FSR1_filt = FSR1_y[0];
-    DAC_o = FSR1_filt * (4095.0 / 3.3);
-
-    
     //Decimation?()
     if(decimationCounter < 5){
       decimationCounter ++;
@@ -145,6 +160,13 @@ void loop() {
     // Restart decimator counter
     decimationCounter = 1;
     
+    //Moving_average()
+    FSR1_filt = moving_average(FSR1_y[0]);
+
+    //DAC_o = FSR1_filt * (4095.0 / 3.3);
+    DAC_o = FSR1_filt;
+
+
     // Enable DAC
     SPI.begin();
     digitalWrite(sync, LOW);
@@ -155,7 +177,7 @@ void loop() {
     SPI.endTransaction();
 
 
-    //Moving_average()
+    
     digitalWrite(DEBUG, LOW);
   }
 
