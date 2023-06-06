@@ -2,8 +2,8 @@
 #include <nrfx.h>
 #include <nrf.h>
 #include "nrf_timer.h"
-#include "nrf_delay.h"
 #include "arm_math.h"
+
 
 #include "SPI.h"
 
@@ -19,6 +19,28 @@ uint16_t DAC_o = 0;
 
 float32_t int_res; // Auxiliar dot product result for IIR filter
 uint32_t idx; //  Auxiliar min and max index (not used)
+
+// Final pollable variables
+//FSR
+float32_t interfaceingForceMean = 0.0f;
+float32_t interfaceingForceMin = 0.0f;
+float32_t interfaceingForceMax = 0.0f;
+//NTC
+float32_t skinTemperatureMean = 0.0f;
+float32_t skinTemperatureMin = 0.0f;
+float32_t skinTemperatureMax = 0.0f;
+//Fluids
+float32_t precissionForceMean = 0.0f;
+float32_t precissionForceMin = 0.0f;
+float32_t precissionForceMax = 0.0f;
+//Use time
+uint32_t seconds = 0;
+uint8_t click = 1;
+
+
+
+
+
 
 // Filter variables
 // *** IIR FSR coefficients
@@ -79,8 +101,8 @@ uint8_t RB_i_Fluids1 = 0;
 
 
 
-// Regression constants in the form y = ax^3 + bx^2 + cx + d
-float32_t cubic_params[4] = {4.6029917878732345f, -14.025875655473554f, 26.84085391232573f, -6.390769522330579};
+// Regression constants for the FSR in the form y = ax^3 + bx^2 + cx + d
+float32_t cubic_params_FSR[4] = {4.6029917878732345f, -14.025875655473554f, 26.84085391232573f, -6.390769522330579};
 
 
 // Analog acquisition
@@ -131,15 +153,30 @@ void setupTimer(){
   // Start the timer
   NRF_TIMER4->TASKS_START = 1;
 }
+// SPI settings for pmod DA2
+SPISettings mySettings(16000000, MSBFIRST, SPI_MODE0);
+void setupDAC(){
+  pinMode(sync, OUTPUT); // CS
+  digitalWrite(sync, HIGH);
+  SPI.begin();
+  SPI.beginTransaction(mySettings);
+  SPI.endTransaction();
+}
 
 // Timer interrupt handler
 void timerInterruptHandler() {
   digitalWrite(DEBUG, HIGH);
+
   timerFlag = true;
+
+  if(click == 200){
+    seconds ++;
+    click = 0;
+  }
+  click ++;
 }
 
-// SPI settings for pmod DA2
-SPISettings mySettings(16000000, MSBFIRST, SPI_MODE0);
+
 
 
 /******* DSP functions ********/
@@ -192,6 +229,30 @@ float32_t cubicFit(float32_t x, float32_t params[]){
   return params[0] * powf(x,3) + params[1] * powf(x,2) + params[2] * x + params[3];
 }
 
+float32_t vToTemp(float32_t v){
+  float32_t aux;
+  aux = v + (1581/5050);
+  aux *= (607/130680);
+  aux = logf(aux);
+  aux /= 3895.633;
+  aux -= (20 / 5463);
+  aux = (1/aux);
+  return aux + 273.15f;
+}
+
+
+
+/******** Auxiliary *********/
+void writeDAC(uint16_t val){
+  // Enable DAC
+  SPI.begin();
+  digitalWrite(sync, LOW);
+  // Send data
+  SPI.transfer16(val);
+  // De-assert DAC
+  digitalWrite(sync, HIGH);
+  SPI.endTransaction();
+}
 
 
 void setup() {
@@ -203,13 +264,8 @@ void setup() {
   digitalWrite(DEBUG, HIGH);
 
   // Initializes SPI for the DAC
-  pinMode(sync, OUTPUT); // CS
-  digitalWrite(sync, HIGH);
-  SPI.begin();
-  SPI.beginTransaction(mySettings);
-  SPI.endTransaction();
+  setupDAC();
   
-
   // Initializes the timer
   setupTimer();
 }
@@ -243,52 +299,55 @@ void loop() {
     //Decimation
     if(decimationCounter < 5){
       decimationCounter ++;
-      //skip 5 samples
-      return;
     }
-    // Restart decimator counter
-    decimationCounter = 1; 
-    
-    
-    //Moving_average // Compensates the operations
-    movingAverage(  (float32_t*) &MA_ring_buffer_FSR1,
-                    M,
-                    RB_i_FSR1,
-                    FSR1_y[0],
-                    &average_FSR[0],
-                    &min_FSR[0],
-                    &max_FSR[0]);
-    
-    movingAverage((float32_t*) &MA_ring_buffer_FSR2, M, RB_i_FSR2, FSR2_y[0], &average_FSR[1], &min_FSR[1], &max_FSR[1]);
-    movingAverage((float32_t*) &MA_ring_buffer_FSR3, M, RB_i_FSR3, FSR3_y[0], &average_FSR[2], &min_FSR[2], &max_FSR[2]);
-    movingAverage((float32_t*) &MA_ring_buffer_FSR4, M, RB_i_FSR4, FSR1_y[0], &average_FSR[3], &min_FSR[3], &max_FSR[3]);
-    movingAverage((float32_t*) &MA_ring_buffer_NTC1, M, RB_i_NTC1, NTC1_y[0], &average_NTC1, &min_NTC1, &max_NTC1);
-    movingAverage((float32_t*) &MA_ring_buffer_Fluids1, M, RB_i_Fluids1, FSR1_y[0], &average_Fluids1, &min_Fluids1, &max_Fluids1);
+    else {
+      // Restart decimator counter
+      decimationCounter = 1; 
+      
+      
+      //Moving_average // Compensates the operations
+      movingAverage(  (float32_t*) &MA_ring_buffer_FSR1,
+                      M,
+                      RB_i_FSR1,
+                      FSR1_y[0],
+                      &average_FSR[0],
+                      &min_FSR[0],
+                      &max_FSR[0]);
+      
+      movingAverage((float32_t*) &MA_ring_buffer_FSR2, M, RB_i_FSR2, FSR2_y[0], &average_FSR[1], &min_FSR[1], &max_FSR[1]);
+      movingAverage((float32_t*) &MA_ring_buffer_FSR3, M, RB_i_FSR3, FSR3_y[0], &average_FSR[2], &min_FSR[2], &max_FSR[2]);
+      movingAverage((float32_t*) &MA_ring_buffer_FSR4, M, RB_i_FSR4, FSR1_y[0], &average_FSR[3], &min_FSR[3], &max_FSR[3]);
+      movingAverage((float32_t*) &MA_ring_buffer_NTC1, M, RB_i_NTC1, NTC1_y[0], &average_NTC1, &min_NTC1, &max_NTC1);
+      movingAverage((float32_t*) &MA_ring_buffer_Fluids1, M, RB_i_Fluids1, FSR1_y[0], &average_Fluids1, &min_Fluids1, &max_Fluids1);
 
 
-    // Get the absolute metrics of the 4 FSR channels
-    arm_mean_f32(average_FSR, 4, &FSR_mean);
-    arm_min_f32(min_FSR, 4, &FSR_min, &idx);
-    arm_max_no_idx_f32(max_FSR, 4, &FSR_max);
+      // Get the absolute metrics of the 4 FSR channels
+      arm_mean_f32(average_FSR, 4, &FSR_mean);
+      arm_min_f32(min_FSR, 4, &FSR_min, &idx);
+      arm_max_no_idx_f32(max_FSR, 4, &FSR_max);
 
-    // Voltage to force conversion
-    FSR1_filt = cubicFit(average_FSR[0], cubic_params);
+      // Voltage to force conversion
+      interfaceingForceMean = cubicFit(FSR_mean, cubic_params_FSR);
+      interfaceingForceMin = cubicFit(FSR_min, cubic_params_FSR);
+      interfaceingForceMax = cubicFit(FSR_max, cubic_params_FSR);
 
-    DAC_o = FSR1_filt * (4095.0f / 80.0f);
-    //DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
+      // Voltage to temperature conversion
+      skinTemperatureMean = vToTemp(average_NTC1);
+      skinTemperatureMin = vToTemp(min_NTC1);
+      skinTemperatureMax = vToTemp(max_NTC1);
 
-    // Enable DAC
-    SPI.begin();
-    digitalWrite(sync, LOW);
-    // Send data
-    SPI.transfer16(DAC_o);
-    // De-assert DAC
-    digitalWrite(sync, HIGH);
-    SPI.endTransaction();
-    
-    digitalWrite(DEBUG, LOW);
+
+
+
+
+      FSR1_filt = cubicFit(average_FSR[0], cubic_params_FSR);
+
+      DAC_o = FSR1_filt * (4095.0f / 80.0f);
+      //DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
+      writeDAC(DAC_o);  
+    }
   }
-
+  digitalWrite(DEBUG, LOW);
   __WFE(); // Wait for event instruction (sleeps waiting for event)
 }
 
