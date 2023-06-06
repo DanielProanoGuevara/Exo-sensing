@@ -260,23 +260,84 @@ void writeDAC(uint16_t val){
   SPI.endTransaction();
 }
 
+void readADC(){
+  FSR1_raw = analogRead(A0);
+  FSR2_raw = analogRead(A1);
+  FSR3_raw = analogRead(A2);
+  FSR4_raw = analogRead(A3);
+  NTC1_raw = analogRead(A6);
+  Fluids1_raw = analogRead(A7);
+}
 
+void filterIIRAll(){
+  IIR(FSR1_raw, 
+      (float32_t*) &FSR1_x,
+      (float32_t*) &FSR1_y,
+      A_FSR,
+      B_FSR);
 
-/****** Update Values *****/
+  IIR(FSR2_raw, (float32_t*) &FSR2_x, (float32_t*) &FSR2_y, A_FSR, B_FSR);
+  IIR(FSR3_raw, (float32_t*) &FSR3_x, (float32_t*) &FSR3_y, A_FSR, B_FSR);
+  IIR(FSR4_raw, (float32_t*) &FSR4_x, (float32_t*) &FSR4_y, A_FSR, B_FSR);
+  IIR(NTC1_raw, (float32_t*) &NTC1_x, (float32_t*) &NTC1_y, A_NTC, B_NTC);
+  IIR(Fluids1_raw, (float32_t*) &Fluids1_x, (float32_t*) &Fluids1_y, A_FSR, B_FSR);
+}
+
+void filterMAAll(){
+  movingAverage(  (float32_t*) &MA_ring_buffer_FSR1,
+                  M,
+                  RB_i_FSR1,
+                  FSR1_y[0],
+                  &average_FSR[0],
+                  &min_FSR[0],
+                  &max_FSR[0]);
+  
+  movingAverage((float32_t*) &MA_ring_buffer_FSR2, M, RB_i_FSR2, FSR2_y[0], &average_FSR[1], &min_FSR[1], &max_FSR[1]);
+  movingAverage((float32_t*) &MA_ring_buffer_FSR3, M, RB_i_FSR3, FSR3_y[0], &average_FSR[2], &min_FSR[2], &max_FSR[2]);
+  movingAverage((float32_t*) &MA_ring_buffer_FSR4, M, RB_i_FSR4, FSR1_y[0], &average_FSR[3], &min_FSR[3], &max_FSR[3]);
+  movingAverage((float32_t*) &MA_ring_buffer_NTC1, M, RB_i_NTC1, NTC1_y[0], &average_NTC1, &min_NTC1, &max_NTC1);
+  movingAverage((float32_t*) &MA_ring_buffer_Fluids1, M, RB_i_Fluids1, FSR1_y[0], &average_Fluids1, &min_Fluids1, &max_Fluids1);
+
+}
+
+void updateFSR(){
+  arm_mean_f32(average_FSR, 4, &FSR_mean);
+  arm_min_f32(min_FSR, 4, &FSR_min, &idx);
+  arm_max_no_idx_f32(max_FSR, 4, &FSR_max);
+
+  // Voltage to force conversion
+  interfaceingForceMean = cubicFit(FSR_mean, cubic_params_FSR);
+  interfaceingForceMin = cubicFit(FSR_min, cubic_params_FSR);
+  interfaceingForceMax = cubicFit(FSR_max, cubic_params_FSR);
+}
+
+void updateBodyTemperature(){
+  skinTemperatureMean = vToTemp(average_NTC1);
+  skinTemperatureMin = vToTemp(min_NTC1);
+  skinTemperatureMax = vToTemp(max_NTC1);
+}
+
+void updatePrecisionPressure(){
+  /***** IMPLEMENT REGRESSION OVER FLUIDS *****/
+}
+
+void updateComfort(){
+  /***** IMPLEMENT FUZZY PREDICTOR FOR COMFORT *****/
+}
+
 void updateAmbTemperatureHumidity(){
   amb_temperature = HS300x.readTemperature();
   amb_humidity = HS300x.readTemperature();
 }
 
-void updatePressure(){
+void updateAmbPressure(){
   amb_baro_pressure = BARO.readPressure();
 }
-
 
 // Modify to publish the values of the sensors through BLE
 void publishValues(){
   updateAmbTemperatureHumidity();
-  updatePressure();
+  updateAmbPressure();
   Serial.print("Mean force:");
   Serial.print(interfaceingForceMean);
   Serial.print(",");
@@ -300,7 +361,7 @@ void setup() {
   setupTimer();
 
   // Initialize serial
-  Serial.begin(2000000);
+  Serial.begin(115200);
   // Initializes SPI for the DAC
   setupDAC();
   // Initialize humidity/temperature sensor
@@ -316,25 +377,10 @@ void loop() {
     timerFlag = false;
 
     // Read all the ports
-    FSR1_raw = analogRead(A0);
-    FSR2_raw = analogRead(A1);
-    FSR3_raw = analogRead(A2);
-    FSR4_raw = analogRead(A3);
-    NTC1_raw = analogRead(A6);
-    Fluids1_raw = analogRead(A7);
+    readADC();
 
     //IIR_filter
-    IIR(FSR1_raw, 
-        (float32_t*) &FSR1_x,
-        (float32_t*) &FSR1_y,
-        A_FSR,
-        B_FSR);
-
-    IIR(FSR2_raw, (float32_t*) &FSR2_x, (float32_t*) &FSR2_y, A_FSR, B_FSR);
-    IIR(FSR3_raw, (float32_t*) &FSR3_x, (float32_t*) &FSR3_y, A_FSR, B_FSR);
-    IIR(FSR4_raw, (float32_t*) &FSR4_x, (float32_t*) &FSR4_y, A_FSR, B_FSR);
-    IIR(NTC1_raw, (float32_t*) &NTC1_x, (float32_t*) &NTC1_y, A_NTC, B_NTC);
-    IIR(Fluids1_raw, (float32_t*) &Fluids1_x, (float32_t*) &Fluids1_y, A_FSR, B_FSR);
+    filterIIRAll();
         
     //Decimation
     if(decimationCounter < 5){
@@ -346,36 +392,17 @@ void loop() {
       
       
       //Moving_average // Compensates the operations
-      movingAverage(  (float32_t*) &MA_ring_buffer_FSR1,
-                      M,
-                      RB_i_FSR1,
-                      FSR1_y[0],
-                      &average_FSR[0],
-                      &min_FSR[0],
-                      &max_FSR[0]);
-      
-      movingAverage((float32_t*) &MA_ring_buffer_FSR2, M, RB_i_FSR2, FSR2_y[0], &average_FSR[1], &min_FSR[1], &max_FSR[1]);
-      movingAverage((float32_t*) &MA_ring_buffer_FSR3, M, RB_i_FSR3, FSR3_y[0], &average_FSR[2], &min_FSR[2], &max_FSR[2]);
-      movingAverage((float32_t*) &MA_ring_buffer_FSR4, M, RB_i_FSR4, FSR1_y[0], &average_FSR[3], &min_FSR[3], &max_FSR[3]);
-      movingAverage((float32_t*) &MA_ring_buffer_NTC1, M, RB_i_NTC1, NTC1_y[0], &average_NTC1, &min_NTC1, &max_NTC1);
-      movingAverage((float32_t*) &MA_ring_buffer_Fluids1, M, RB_i_Fluids1, FSR1_y[0], &average_Fluids1, &min_Fluids1, &max_Fluids1);
+      filterMAAll();
+
+      // Get FSR values **** temporal
+      updateFSR();
+
+      // Get temperature values **** temporal
+      updateBodyTemperature();
 
 
-      // Get the absolute metrics of the 4 FSR channels
-      arm_mean_f32(average_FSR, 4, &FSR_mean);
-      arm_min_f32(min_FSR, 4, &FSR_min, &idx);
-      arm_max_no_idx_f32(max_FSR, 4, &FSR_max);
 
-      // Voltage to force conversion
-      interfaceingForceMean = cubicFit(FSR_mean, cubic_params_FSR);
-      interfaceingForceMin = cubicFit(FSR_min, cubic_params_FSR);
-      interfaceingForceMax = cubicFit(FSR_max, cubic_params_FSR);
-
-      // Voltage to temperature conversion
-      skinTemperatureMean = vToTemp(average_NTC1);
-      skinTemperatureMin = vToTemp(min_NTC1);
-      skinTemperatureMax = vToTemp(max_NTC1);
-
+      /***** DEBUG PLAY *****/
       FSR1_filt = cubicFit(average_FSR[0], cubic_params_FSR);
 
       DAC_o = FSR1_filt * (4095.0f / 80.0f);
