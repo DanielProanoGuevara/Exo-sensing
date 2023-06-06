@@ -4,6 +4,8 @@
 #include "nrf_timer.h"
 #include "arm_math.h"
 
+#include <Arduino_HS300x.h>
+#include <Arduino_LPS22HB.h>
 
 #include "SPI.h"
 
@@ -36,7 +38,10 @@ float32_t precissionForceMax = 0.0f;
 //Use time
 uint32_t seconds = 0;
 uint8_t click = 1;
-
+//Environmental values
+float32_t amb_baro_pressure = 0.0f;
+float32_t amb_temperature = 0.0f;
+float32_t amb_humidity = 0.0f;
 
 
 
@@ -115,6 +120,7 @@ uint16_t Fluids1_raw = 0;
 
 // Timer interrupt flag
 volatile bool timerFlag = false;
+
 
 /***** Configuration Setup *****/
 // Initialize the timer
@@ -255,6 +261,33 @@ void writeDAC(uint16_t val){
 }
 
 
+
+/****** Update Values *****/
+void updateAmbTemperatureHumidity(){
+  amb_temperature = HS300x.readTemperature();
+  amb_humidity = HS300x.readTemperature();
+}
+
+void updatePressure(){
+  amb_baro_pressure = BARO.readPressure();
+}
+
+
+// Modify to publish the values of the sensors through BLE
+void publishValues(){
+  updateAmbTemperatureHumidity();
+  updatePressure();
+  Serial.print("Mean force:");
+  Serial.print(interfaceingForceMean);
+  Serial.print(",");
+  Serial.print("Amb temp:");
+  Serial.print(amb_temperature);
+  Serial.print(",");
+  Serial.print("Amb humidity");
+  Serial.println(amb_humidity);
+}
+
+
 void setup() {
   // analog configuration
   analogReadResolution(12);
@@ -263,11 +296,18 @@ void setup() {
   pinMode(DEBUG, OUTPUT);
   digitalWrite(DEBUG, HIGH);
 
-  // Initializes SPI for the DAC
-  setupDAC();
-  
   // Initializes the timer
   setupTimer();
+
+  // Initialize serial
+  Serial.begin(2000000);
+  // Initializes SPI for the DAC
+  setupDAC();
+  // Initialize humidity/temperature sensor
+  HS300x.begin();
+  // Initialize pressure sensor
+  BARO.begin();
+  
 }
 
 void loop() {
@@ -336,10 +376,6 @@ void loop() {
       skinTemperatureMin = vToTemp(min_NTC1);
       skinTemperatureMax = vToTemp(max_NTC1);
 
-
-
-
-
       FSR1_filt = cubicFit(average_FSR[0], cubic_params_FSR);
 
       DAC_o = FSR1_filt * (4095.0f / 80.0f);
@@ -347,6 +383,13 @@ void loop() {
       writeDAC(DAC_o);  
     }
   }
+
+  /* BLE publishing section
+  if(){
+    publishValues();
+  }
+  */
+
   digitalWrite(DEBUG, LOW);
   __WFE(); // Wait for event instruction (sleeps waiting for event)
 }
