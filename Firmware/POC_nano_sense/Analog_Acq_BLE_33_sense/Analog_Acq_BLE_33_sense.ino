@@ -4,12 +4,12 @@
 #include <nrf.h>
 #include <nrf_timer.h>
 
-#include <SPI.h>
+
 
 
 #include "dsp.h"
 #include "sys.h"
-
+#include "setup_peripheral.h"
 
 
 
@@ -24,31 +24,6 @@ volatile bool timerFlag = false;
 
 // Auxiliar variable
 uint32_t idx = 0;
-
-
-
-
-// Final pollable variables
-//FSR
-float32_t interfaceingForceMean = 0.0f;
-float32_t interfaceingForceMin = 0.0f;
-float32_t interfaceingForceMax = 0.0f;
-//NTC
-float32_t skinTemperatureMean = 0.0f;
-float32_t skinTemperatureMin = 0.0f;
-float32_t skinTemperatureMax = 0.0f;
-//Fluids
-float32_t precissionForceMean = 0.0f;
-float32_t precissionForceMin = 0.0f;
-float32_t precissionForceMax = 0.0f;
-
-//Environmental values
-float32_t amb_baro_pressure = 0.0f;
-float32_t amb_temperature = 0.0f;
-float32_t amb_humidity = 0.0f;
-
-
-
 
 
 // Filter variables
@@ -74,15 +49,11 @@ float32_t Fluids1_x[7] = { 0.0f };
 float32_t Fluids1_y[7] = { 0.0f };
 
 // *** MA ring buffer and variables
-
 const uint8_t M = 20;  // Window size
 float32_t average_FSR[4] = { 0.0f };
 float32_t min_FSR[4] = { 0.0f };
 float32_t max_FSR[4] = { 0.0f };
 
-float32_t FSR_mean;
-float32_t FSR_min;
-float32_t FSR_max;
 
 float32_t MA_ring_buffer_FSR1[M] = { 0.0f };  // FSR1 moving average ring buffer
 uint8_t RB_i_FSR1 = 0;                        // FSR1 Ring buffer iterator
@@ -108,13 +79,7 @@ float32_t min_Fluids1 = 0.0f;
 float32_t max_Fluids1 = 0.0f;
 uint8_t RB_i_Fluids1 = 0;
 
-
-
-// Regression constants for the FSR in the form y = ax^3 + bx^2 + cx + d
-float32_t cubic_params_FSR[4] = { 4.6029917878732345f, -14.025875655473554f, 26.84085391232573f, -6.390769522330579 };
-
-
-// Analog acquisition
+// Raw analog readings~
 uint16_t FSR1_raw = 0;
 uint16_t FSR2_raw = 0;
 uint16_t FSR3_raw = 0;
@@ -123,81 +88,7 @@ uint16_t NTC1_raw = 0;
 uint16_t Fluids1_raw = 0;
 
 
-
-
-/***** Configuration Setup *****/
-
-// SPI settings for pmod DA2
-SPISettings mySettings(16000000, MSBFIRST, SPI_MODE0);
-void setupDAC() {
-  pinMode(sync, OUTPUT);  // CS
-  digitalWrite(sync, HIGH);
-  SPI.begin();
-  SPI.beginTransaction(mySettings);
-  SPI.endTransaction();
-}
-
-// Initialize the timer
-void setupTimer() {
-  // Uses timer 4, since timer 1,2,3 are used in the BLE transactions
-
-  // Disable interrupts before configuring
-  //NRF_TIMER4->INTENCLR = TIMER_INTENCLR_COMPARE0_Clear << TIMER_INTENCLR_COMPARE0_Pos;
-
-  // Stop and clear the timer before using it
-  NRF_TIMER4->TASKS_STOP = 1;
-  NRF_TIMER4->TASKS_CLEAR = 1;
-
-
-  // Set up the timer interrupt
-  NRF_TIMER4->MODE = TIMER_MODE_MODE_Timer;           // Set timer mode
-  NRF_TIMER4->BITMODE = TIMER_BITMODE_BITMODE_16Bit;  // Set timer to 32-bit mode
-
-  // Set the timer prescaler to achieve desired interval
-  NRF_TIMER4->PRESCALER = 7;
-
-  // Set the compare value to trigger the interrupt
-  // The compare value depends on the desired interval and timer resolution
-  NRF_TIMER4->CC[0] = 0x270;
-
-  // Enable the compare interrupt on CC[0]
-  NRF_TIMER4->INTENSET = TIMER_INTENSET_COMPARE0_Set << TIMER_INTENSET_COMPARE0_Pos;
-  // Create a shortcut for the timer clearing
-  NRF_TIMER4->SHORTS = TIMER_SHORTS_COMPARE0_CLEAR_Enabled << TIMER_SHORTS_COMPARE0_CLEAR_Pos;
-
-  // Set interrupt priority
-  NVIC_SetPriority(TIMER4_IRQn, 1ul);
-  // Enable the interrupt in the NVIC
-  NVIC_EnableIRQ(TIMER4_IRQn);
-
-  // Start the timer
-  NRF_TIMER4->TASKS_START = 1;
-}
-
-
-
-
-
-/******* DSP functions ********/
-
-
-/******** Regression **********/
-
-
-
-
 /******** Auxiliary *********/
-void writeDAC(uint16_t val) {
-  // Enable DAC
-  SPI.begin();
-  digitalWrite(sync, LOW);
-  // Send data
-  SPI.transfer16(val);
-  // De-assert DAC
-  digitalWrite(sync, HIGH);
-  SPI.endTransaction();
-}
-
 void readADC() {
   FSR1_raw = analogRead(A0);
   FSR2_raw = analogRead(A1);
@@ -206,6 +97,8 @@ void readADC() {
   NTC1_raw = analogRead(A6);
   Fluids1_raw = analogRead(A7);
 }
+
+
 
 void filterIIRAll() {
   IIR(FSR1_raw,
@@ -237,7 +130,38 @@ void filterMAAll() {
   movingAverage((float32_t *)&MA_ring_buffer_Fluids1, M, RB_i_Fluids1, FSR1_y[0], &average_Fluids1, &min_Fluids1, &max_Fluids1);
 }
 
-void updateFSR() {
+
+
+// Regression constants for the FSR in the form y = ax^3 + bx^2 + cx + d
+float32_t cubic_params_FSR[4] = { 4.6029917878732345f, -14.025875655473554f, 26.84085391232573f, -6.390769522330579 };
+void updateVars(float32_t average_fsr[], float32_t min_fsr[], float32_t max_fsr[],
+                float32_t average_NTC1, float32_t min_NTC1,float32_t max_NTC1,
+                float32_t average_Fluids1, float32_t min_Fluids1, float32_t max_Fluids1){
+  /********** Local Variables **********/
+  float32_t FSR_mean;
+  float32_t FSR_min;
+  float32_t FSR_max;
+
+  //FSR
+  float32_t interfaceingForceMean = 0.0f;
+  float32_t interfaceingForceMin = 0.0f;
+  float32_t interfaceingForceMax = 0.0f;
+  //NTC
+  float32_t skinTemperatureMean = 0.0f;
+  float32_t skinTemperatureMin = 0.0f;
+  float32_t skinTemperatureMax = 0.0f;
+  //Fluids
+  float32_t precissionForceMean = 0.0f;
+  float32_t precissionForceMin = 0.0f;
+  float32_t precissionForceMax = 0.0f;
+
+  //Environmental values
+  float32_t amb_baro_pressure = 0.0f;
+  float32_t amb_temperature = 0.0f;
+  float32_t amb_humidity = 0.0f;
+
+  /********** Read values **********/
+  // FSR
   arm_mean_f32(average_FSR, 4, &FSR_mean);
   arm_min_f32(min_FSR, 4, &FSR_min, &idx);
   arm_max_no_idx_f32(max_FSR, 4, &FSR_max);
@@ -246,61 +170,58 @@ void updateFSR() {
   interfaceingForceMean = cubicFit(FSR_mean, cubic_params_FSR);
   interfaceingForceMin = cubicFit(FSR_min, cubic_params_FSR);
   interfaceingForceMax = cubicFit(FSR_max, cubic_params_FSR);
-}
 
-void updateBodyTemperature() {
+
+  // NTC
   skinTemperatureMean = vToTemp(average_NTC1);
   skinTemperatureMin = vToTemp(min_NTC1);
   skinTemperatureMax = vToTemp(max_NTC1);
-}
 
-void updatePrecisionPressure() {
-  /***** IMPLEMENT REGRESSION OVER FLUIDS *****/
-}
 
-void updateComfort() {
-  /***** IMPLEMENT FUZZY PREDICTOR FOR COMFORT *****/
-}
+    /***** IMPLEMENT REGRESSION OVER FLUIDS *****/
 
-void updateAmbTemperatureHumidity() {
+    /***** IMPLEMENT FUZZY PREDICTOR FOR COMFORT *****/
+
+  // Environmental
   amb_temperature = HS300x.readTemperature();
   amb_humidity = HS300x.readTemperature();
-}
-
-void updateAmbPressure() {
   amb_baro_pressure = BARO.readPressure();
-}
 
-// Modify to publish the values of the sensors through BLE
-void publishValues() {
-  updateAmbTemperatureHumidity();
-  updateAmbPressure();
+  
+  // Communication Protocols
+#ifdef UART_EN
   Serial.print("Mean force:");
   Serial.print(interfaceingForceMean);
+  Serial.print(",");
+  Serial.print("Mean temperature:");
+  Serial.print(skinTemperatureMean);
   Serial.print(",");
   Serial.print("Amb temp:");
   Serial.print(amb_temperature);
   Serial.print(",");
   Serial.print("Amb humidity");
   Serial.println(amb_humidity);
-}
+#endif
+#ifdef BLE_EN
 
+#endif
+
+}
 
 void setup() {
   // analog configuration
   analogReadResolution(12);
-
   // Initializes the debug pin
   pinMode(DEBUG, OUTPUT);
   digitalWrite(DEBUG, HIGH);
-
   // Initializes the timer
   setupTimer();
-
   // Initialize serial
   Serial.begin(115200);
+#ifdef DEBUG_DAC
   // Initializes SPI for the DAC
   setupDAC();
+#endif
   // Initialize humidity/temperature sensor
   HS300x.begin();
   // Initialize pressure sensor
@@ -329,20 +250,14 @@ void loop() {
       //Moving_average // Compensates the operations
       filterMAAll();
 
-      // Get FSR values **** temporal
-      updateFSR();
-
-      // Get temperature values **** temporal
-      updateBodyTemperature();
-
-
-
       /***** DEBUG PLAY *****/
+      #ifdef DEBUG_DAC
       FSR1_filt = cubicFit(average_FSR[0], cubic_params_FSR);
 
-      DAC_o = FSR1_filt * (4095.0f / 80.0f);
-      //DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
+      //DAC_o = FSR1_filt * (4095.0f / 80.0f);
+      DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
       writeDAC(DAC_o);
+      #endif
     }
   }
 
@@ -358,20 +273,14 @@ void loop() {
 
 
 
-// Timer interrupt handler
-void timerInterruptHandler() {
-  digitalWrite(DEBUG, HIGH);
-  timerFlag = true;
-}
-
-
 // Timer interrupt service routine
 extern "C" void TIMER4_IRQHandler_v(void) {
   // Check if the interrupt was triggered by CC[0]
   if (NRF_TIMER4->EVENTS_COMPARE[0]) {
     NRF_TIMER4->EVENTS_COMPARE[0] = 0;  // Clear the event
 
-    timerInterruptHandler();  // Call the interrupt handler function
+    digitalWrite(DEBUG, HIGH);
+    timerFlag = true;
   }
 }
 
