@@ -134,6 +134,13 @@ void filterMAAll() {
 
 
 
+//Environmental values
+  float32_t amb_baro_pressure = 0.0f;
+  float32_t amb_temperature = 0.0f;
+  float32_t amb_humidity = 0.0f;
+
+
+
 // Regression constants for the FSR in the form y = ax^3 + bx^2 + cx + d
 float32_t cubic_params_FSR[4] = { 4.6029917878732345f, -14.025875655473554f, 26.84085391232573f, -6.390769522330579 };
 void updateVars(){
@@ -212,43 +219,6 @@ void updateVars(){
 
 
 
-// Initialize the timer
-void setupRTC() {
-  // Disable interrupts before configuring
-  NRF_RTC2->INTENCLR = RTC_INTENCLR_TICK_Clear << RTC_INTENCLR_TICK_Pos;
-
-
-  // Start LFCLK (32kHz) crystal oscillator.
-  NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_RC << CLOCK_LFCLKSRC_SRC_Pos;
-  //NRF_CLOCK->LFRCMODE = 1; // Ultra-low power mode (ULP)
-  NRF_CLOCK->TASKS_LFCLKSTART = 1; // Start the low power clock
-  while(NRF_CLOCK->EVENTS_LFCLKSTARTED == 0); // Wait for the clock to initialize
-  NRF_CLOCK->EVENTS_LFCLKSTARTED = 0; // Reset the events register
-
-  // Stop and clear the timer before using it
-  NRF_RTC2->TASKS_STOP = 1;
-  NRF_RTC2->TASKS_CLEAR = 1;
-
-  // 1 Hz timer period
-  NRF_RTC2->PRESCALER = 0x7FFF;
-  // Enable events on tick 
-  NRF_RTC2->EVTENSET = RTC_EVTENSET_TICK_Set << RTC_EVTENSET_TICK_Pos;
-  // Enable IRQ on TICK
-  NRF_RTC2->INTENSET = RTC_INTENSET_TICK_Set << RTC_INTENSET_TICK_Pos;
-
-  // Set interrupt priority
-  NVIC_SetPriority(RTC2_IRQn, 1ul);
-  // Enable the interrupt in the NVIC
-  NVIC_EnableIRQ(RTC2_IRQn);
-
-  // Start the RTC
-  NRF_RTC2->TASKS_START = 1;
-}
-
-
-
-
-
 void setup() {
   // analog configuration
   analogReadResolution(12);
@@ -298,20 +268,18 @@ void loop() {
       filterMAAll();
 
       /***** DEBUG PLAY *****/
-    #ifdef DEBUG_DAC
+      #ifdef DEBUG_DAC
       FSR1_filt = cubicFit(average_FSR[0], cubic_params_FSR);
 
-      //DAC_o = FSR1_filt * (4095.0f / 80.0f);
-      DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
+      DAC_o = FSR1_filt * (4095.0f / 80.0f);
+      //DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
 
       writeDAC(DAC_o);
-    #endif
-
+      #endif
+    }
     #ifdef DEBUG_PIN_EN
     digitalWrite(DEBUG, LOW);
     #endif
-
-    }
   }
 
   // Run every RTC interruption
@@ -319,6 +287,26 @@ void loop() {
     rtcFlag = false;
 
     //publishValues();
+    /***********************Send values over Serial Plotter**********************/
+    // Environmental
+    amb_temperature = HS300x.readTemperature();
+    amb_humidity = HS300x.readTemperature();
+    amb_baro_pressure = BARO.readPressure();
+
+
+    Serial.print("Mean_force:");
+    Serial.print(FSR1_filt);
+    Serial.print(",");
+    Serial.print("Amb_temp:");
+    Serial.print(amb_temperature);
+    Serial.print(",");
+    Serial.print("Amb_baro:");
+    Serial.print(amb_baro_pressure);
+    Serial.print(",");
+    Serial.print("Amb_humidity");
+    Serial.println(amb_humidity);
+
+    /****************************************************************************/
     #ifdef DEBUG_PIN_EN
     digitalWrite(DEBUG2, LOW);
     #endif
@@ -335,9 +323,9 @@ extern "C" void TIMER4_IRQHandler_v(void) {
   if (NRF_TIMER4->EVENTS_COMPARE[0]) {
     NRF_TIMER4->EVENTS_COMPARE[0] = 0;  // Clear the event
 
-#ifdef DEBUG_PIN_EN
+  #ifdef DEBUG_PIN_EN
     digitalWrite(DEBUG, HIGH);
-#endif
+  #endif
     timerFlag = true;
   }
 }
@@ -345,13 +333,15 @@ extern "C" void TIMER4_IRQHandler_v(void) {
 // RTC interrupt service routine
 extern "C" void RTC2_IRQHandler_v(void){
   // Check if the interrupt was triggered by a tick event
-  if (NRF_RTC2->EVENTS_TICK) {
-    NRF_RTC2->EVENTS_TICK = 0; // Clear event 
+  if (NRF_RTC2->EVENTS_COMPARE[0]) {
+    NRF_RTC2->EVENTS_COMPARE[0] = 0; // Clear event 
+    NRF_RTC2->TASKS_CLEAR = 1; // Clear register value
 
-#ifdef DEBUG_PIN_EN
+  #ifdef DEBUG_PIN_EN
     digitalWrite(DEBUG2, HIGH);
-#endif
+  #endif
     rtcFlag = true;
+    // Use time control below this
   }
 }
 

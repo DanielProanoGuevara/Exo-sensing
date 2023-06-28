@@ -14,6 +14,7 @@
 
 /***************FUNCTION PROTOTYPES**********************/
 void setupTimer();
+void setupRTC();
 #ifdef DEBUG_DAC
 void setupDAC();
 void writeDAC(uint16_t val);

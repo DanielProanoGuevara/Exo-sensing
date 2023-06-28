@@ -1,3 +1,5 @@
+#include "nrf52840.h"
+#include "nrf52840_bitfields.h"
 #include "setup_peripheral.h"
 
 
@@ -37,6 +39,43 @@ void setupTimer() {
   // Start the timer
   NRF_TIMER4->TASKS_START = 1;
 }
+
+
+// Initialize the RTC
+void setupRTC() {
+  // Disable interrupts before configuring
+  NRF_RTC2->INTENCLR = RTC_INTENCLR_COMPARE0_Clear << RTC_INTENCLR_COMPARE0_Pos;
+
+
+  // Start LFCLK (32kHz) crystal oscillator.
+  NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_RC << CLOCK_LFCLKSRC_SRC_Pos;
+  //NRF_CLOCK->LFRCMODE = 1; // Ultra-low power mode (ULP)
+  NRF_CLOCK->TASKS_LFCLKSTART = 1; // Start the low power clock
+  while(NRF_CLOCK->EVENTS_LFCLKSTARTED == 0); // Wait for the clock to initialize
+  NRF_CLOCK->EVENTS_LFCLKSTARTED = 0; // Reset the events register
+
+  // Stop and clear the timer before using it
+  NRF_RTC2->TASKS_STOP = 1;
+  NRF_RTC2->TASKS_CLEAR = 1;
+
+  // 8 Hz timer period (Maximum)
+  NRF_RTC2->PRESCALER = 0xFFF;
+  // Compare value at 1 second, i.e. every 8 ticks
+  NRF_RTC2->CC[0] = 0X8;
+  // Enable events on tick 
+  NRF_RTC2->EVTENSET = RTC_EVTENSET_COMPARE0_Set << RTC_EVTENSET_COMPARE0_Pos;
+  // Enable IRQ on TICK
+  NRF_RTC2->INTENSET = RTC_INTENSET_COMPARE0_Set << RTC_INTENSET_COMPARE0_Pos;
+
+  // Set interrupt priority
+  NVIC_SetPriority(RTC2_IRQn, 1ul);
+  // Enable the interrupt in the NVIC
+  NVIC_EnableIRQ(RTC2_IRQn);
+
+  // Start the RTC
+  NRF_RTC2->TASKS_START = 1;
+}
+
 
 // SPI settings for pmod DA2
 #ifdef DEBUG_DAC
