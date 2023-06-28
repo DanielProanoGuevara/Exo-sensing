@@ -206,7 +206,7 @@ void updateVars(){
   Serial.print("Amb temp:");
   Serial.print(amb_temperature);
   Serial.print(",");
-  Serial.print("Amb humidity");
+  Serial.print("Amb humidity:");
   Serial.println(amb_humidity);
 #endif
 #ifdef BLE_EN
@@ -233,16 +233,15 @@ void setup() {
   setupTimer();
   // Initializes the rtc
   setupRTC();
+  // Initialize integrated sensors
+  setupIntegrated();
   // Initialize serial
   Serial.begin(115200);
 #ifdef DEBUG_DAC
   // Initializes SPI for the DAC
   setupDAC();
 #endif
-  // Initialize humidity/temperature sensor
-  HS300x.begin();
-  // Initialize pressure sensor
-  BARO.begin();
+
 }
 
 void loop() {
@@ -290,7 +289,7 @@ void loop() {
     /***********************Send values over Serial Plotter**********************/
     // Environmental
     amb_temperature = HS300x.readTemperature();
-    amb_humidity = HS300x.readTemperature();
+    amb_humidity = HS300x.readHumidity();
     amb_baro_pressure = BARO.readPressure();
 
 
@@ -303,7 +302,7 @@ void loop() {
     Serial.print("Amb_baro:");
     Serial.print(amb_baro_pressure);
     Serial.print(",");
-    Serial.print("Amb_humidity");
+    Serial.print("Amb_humidity:");
     Serial.println(amb_humidity);
 
     /****************************************************************************/

@@ -3,9 +3,7 @@
 
 /***************INCLUDES**********************/
 #include <Arduino.h>
-/* Internal Peripherals Libraries */
-#include <Arduino_HS300x.h>
-#include <Arduino_LPS22HB.h>
+
 
 /***************DEFINITIONS******************/
 /* Pin  declarations */ 
