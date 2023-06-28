@@ -30,7 +30,7 @@ void setupTimer() {
   NRF_TIMER4->SHORTS = TIMER_SHORTS_COMPARE0_CLEAR_Enabled << TIMER_SHORTS_COMPARE0_CLEAR_Pos;
 
   // Set interrupt priority
-  NVIC_SetPriority(TIMER4_IRQn, 1ul);
+  NVIC_SetPriority(TIMER4_IRQn, 3ul);
   // Enable the interrupt in the NVIC
   NVIC_EnableIRQ(TIMER4_IRQn);
 

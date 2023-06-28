@@ -3,6 +3,7 @@
 #include <nrfx.h>
 #include <nrf.h>
 #include <nrf_timer.h>
+#include <nrf_rtc.h>
 
 
 
@@ -19,8 +20,9 @@ uint8_t decimationCounter = 1;
 float32_t FSR1_filt = 0.0f;
 uint16_t DAC_o = 0;
 
-// Timer interrupt flag
+// Interrupt flags
 volatile bool timerFlag = false;
+volatile bool rtcFlag = false;
 
 // Auxiliar variable
 uint32_t idx = 0;
@@ -134,9 +136,7 @@ void filterMAAll() {
 
 // Regression constants for the FSR in the form y = ax^3 + bx^2 + cx + d
 float32_t cubic_params_FSR[4] = { 4.6029917878732345f, -14.025875655473554f, 26.84085391232573f, -6.390769522330579 };
-void updateVars(float32_t average_fsr[], float32_t min_fsr[], float32_t max_fsr[],
-                float32_t average_NTC1, float32_t min_NTC1,float32_t max_NTC1,
-                float32_t average_Fluids1, float32_t min_Fluids1, float32_t max_Fluids1){
+void updateVars(){
   /********** Local Variables **********/
   float32_t FSR_mean;
   float32_t FSR_min;
@@ -208,14 +208,53 @@ void updateVars(float32_t average_fsr[], float32_t min_fsr[], float32_t max_fsr[
 
 }
 
+
+
+
+
+// Initialize the timer
+void setupRTC() {
+  // Start LFCLK (32kHz) crystal oscillator.
+  NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_RC << CLOCK_LFCLKSRC_SRC_Pos;
+  NRF_CLOCK->LFRCMODE = 1; // Ultra-low power mode (ULP)
+  NRF_CLOCK->TASKS_LFCLKSTART = 1; // Start the low power clock
+  while(NRF_CLOCK->EVENTS_LFCLKSTARTED == 0); // Wait for the clock to initialize
+  NRF_CLOCK->EVENTS_LFCLKSTARTED = 0; // Reset the events register
+
+  // 1 Hz timer period
+  NRF_RTC0->PRESCALER = 32767;
+  // Enable events on tick 
+  NRF_RTC0->EVTENSET = RTC_EVTENSET_TICK_Enabled << RTC_EVTENSET_TICK_Pos;
+  // Enable IRQ on TICK
+  NRF_RTC0->INTENSET = RTC_INTENSET_TICK_Enabled << RTC_INTENSET_TICK_Pos;
+
+  // Set interrupt priority
+  NVIC_SetPriority(RTC0_IRQn, 2ul);
+  // Enable the interrupt in the NVIC
+  NVIC_EnableIRQ(RTC0_IRQn);
+
+  // Start the RTC
+  NRF_RTC0->TASKS_START = 1ul;
+}
+
+
+
+
+
 void setup() {
   // analog configuration
   analogReadResolution(12);
-  // Initializes the debug pin
+#ifdef DEBUG_PIN_EN
+  // Initializes the debug pins
   pinMode(DEBUG, OUTPUT);
+  pinMode(DEBUG2, OUTPUT);
   digitalWrite(DEBUG, HIGH);
+  digitalWrite(DEBUG2, HIGH);
+#endif
   // Initializes the timer
   setupTimer();
+  // Initializes the rtc
+  setupRTC();
   // Initialize serial
   Serial.begin(115200);
 #ifdef DEBUG_DAC
@@ -229,7 +268,7 @@ void setup() {
 }
 
 void loop() {
-  // Process the interruption on runtime
+  // Run on every ADC acquisition
   if (timerFlag) {
     timerFlag = false;
 
@@ -251,21 +290,25 @@ void loop() {
       filterMAAll();
 
       /***** DEBUG PLAY *****/
-      #ifdef DEBUG_DAC
+    #ifdef DEBUG_DAC
       FSR1_filt = cubicFit(average_FSR[0], cubic_params_FSR);
 
       //DAC_o = FSR1_filt * (4095.0f / 80.0f);
       DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
+    #endif
+    #ifdef DEBUG_PIN_EN
       writeDAC(DAC_o);
-      #endif
+    #endif
     }
   }
 
-  /* BLE publishing section
-  if(){
-    publishValues();
+  // Run every RTC interruption
+  if(rtcFlag){
+    rtcFlag = false;
+
+    //publishValues();
+    digitalWrite(DEBUG2, LOW);
   }
-  */
 
   digitalWrite(DEBUG, LOW);
   __WFE();  // Wait for event instruction (sleeps waiting for event)
@@ -279,8 +322,23 @@ extern "C" void TIMER4_IRQHandler_v(void) {
   if (NRF_TIMER4->EVENTS_COMPARE[0]) {
     NRF_TIMER4->EVENTS_COMPARE[0] = 0;  // Clear the event
 
+#ifdef DEBUG_PIN_EN
     digitalWrite(DEBUG, HIGH);
+#endif
     timerFlag = true;
+  }
+}
+
+// RTC interrupt service routine
+extern "C" void RTC0_IRQHandler_v(void){
+  // Check if the interrupt was triggered by a tick event
+  if (NRF_RTC0->EVENTS_TICK) {
+    NRF_RTC0->EVENTS_TICK = 0; // Clear event 
+
+#ifdef DEBUG_PIN_EN
+    digitalWrite(DEBUG2, HIGH);
+#endif
+    rtcFlag = true;
   }
 }
 

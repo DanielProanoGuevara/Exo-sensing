@@ -10,6 +10,7 @@
 /***************DEFINITIONS******************/
 /* Pin  declarations */ 
 #define DEBUG 2
+#define DEBUG2 3
 #define sync 10
 
 #define DEBUG_PIN_EN 1
