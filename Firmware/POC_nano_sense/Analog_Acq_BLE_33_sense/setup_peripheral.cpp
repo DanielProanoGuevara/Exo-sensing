@@ -6,7 +6,7 @@ void setupTimer() {
   // Uses timer 4, since timer 1,2,3 are used in the BLE transactions
 
   // Disable interrupts before configuring
-  //NRF_TIMER4->INTENCLR = TIMER_INTENCLR_COMPARE0_Clear << TIMER_INTENCLR_COMPARE0_Pos;
+  NRF_TIMER4->INTENCLR = TIMER_INTENCLR_COMPARE0_Clear << TIMER_INTENCLR_COMPARE0_Pos;
 
   // Stop and clear the timer before using it
   NRF_TIMER4->TASKS_STOP = 1;
@@ -30,7 +30,7 @@ void setupTimer() {
   NRF_TIMER4->SHORTS = TIMER_SHORTS_COMPARE0_CLEAR_Enabled << TIMER_SHORTS_COMPARE0_CLEAR_Pos;
 
   // Set interrupt priority
-  NVIC_SetPriority(TIMER4_IRQn, 3ul);
+  NVIC_SetPriority(TIMER4_IRQn, 2ul);
   // Enable the interrupt in the NVIC
   NVIC_EnableIRQ(TIMER4_IRQn);
 

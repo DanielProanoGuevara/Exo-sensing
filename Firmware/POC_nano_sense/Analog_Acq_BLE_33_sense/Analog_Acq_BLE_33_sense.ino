@@ -214,27 +214,35 @@ void updateVars(){
 
 // Initialize the timer
 void setupRTC() {
+  // Disable interrupts before configuring
+  NRF_RTC2->INTENCLR = RTC_INTENCLR_TICK_Clear << RTC_INTENCLR_TICK_Pos;
+
+
   // Start LFCLK (32kHz) crystal oscillator.
   NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_RC << CLOCK_LFCLKSRC_SRC_Pos;
-  NRF_CLOCK->LFRCMODE = 1; // Ultra-low power mode (ULP)
+  //NRF_CLOCK->LFRCMODE = 1; // Ultra-low power mode (ULP)
   NRF_CLOCK->TASKS_LFCLKSTART = 1; // Start the low power clock
   while(NRF_CLOCK->EVENTS_LFCLKSTARTED == 0); // Wait for the clock to initialize
   NRF_CLOCK->EVENTS_LFCLKSTARTED = 0; // Reset the events register
 
+  // Stop and clear the timer before using it
+  NRF_RTC2->TASKS_STOP = 1;
+  NRF_RTC2->TASKS_CLEAR = 1;
+
   // 1 Hz timer period
-  NRF_RTC0->PRESCALER = 32767;
+  NRF_RTC2->PRESCALER = 0x7FFF;
   // Enable events on tick 
-  NRF_RTC0->EVTENSET = RTC_EVTENSET_TICK_Enabled << RTC_EVTENSET_TICK_Pos;
+  NRF_RTC2->EVTENSET = RTC_EVTENSET_TICK_Set << RTC_EVTENSET_TICK_Pos;
   // Enable IRQ on TICK
-  NRF_RTC0->INTENSET = RTC_INTENSET_TICK_Enabled << RTC_INTENSET_TICK_Pos;
+  NRF_RTC2->INTENSET = RTC_INTENSET_TICK_Set << RTC_INTENSET_TICK_Pos;
 
   // Set interrupt priority
-  NVIC_SetPriority(RTC0_IRQn, 2ul);
+  NVIC_SetPriority(RTC2_IRQn, 1ul);
   // Enable the interrupt in the NVIC
-  NVIC_EnableIRQ(RTC0_IRQn);
+  NVIC_EnableIRQ(RTC2_IRQn);
 
   // Start the RTC
-  NRF_RTC0->TASKS_START = 1ul;
+  NRF_RTC2->TASKS_START = 1;
 }
 
 
@@ -295,10 +303,14 @@ void loop() {
 
       //DAC_o = FSR1_filt * (4095.0f / 80.0f);
       DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
-    #endif
-    #ifdef DEBUG_PIN_EN
+
       writeDAC(DAC_o);
     #endif
+
+    #ifdef DEBUG_PIN_EN
+    digitalWrite(DEBUG, LOW);
+    #endif
+
     }
   }
 
@@ -307,10 +319,11 @@ void loop() {
     rtcFlag = false;
 
     //publishValues();
+    #ifdef DEBUG_PIN_EN
     digitalWrite(DEBUG2, LOW);
+    #endif
   }
 
-  digitalWrite(DEBUG, LOW);
   __WFE();  // Wait for event instruction (sleeps waiting for event)
 }
 
@@ -330,10 +343,10 @@ extern "C" void TIMER4_IRQHandler_v(void) {
 }
 
 // RTC interrupt service routine
-extern "C" void RTC0_IRQHandler_v(void){
+extern "C" void RTC2_IRQHandler_v(void){
   // Check if the interrupt was triggered by a tick event
-  if (NRF_RTC0->EVENTS_TICK) {
-    NRF_RTC0->EVENTS_TICK = 0; // Clear event 
+  if (NRF_RTC2->EVENTS_TICK) {
+    NRF_RTC2->EVENTS_TICK = 0; // Clear event 
 
 #ifdef DEBUG_PIN_EN
     digitalWrite(DEBUG2, HIGH);
