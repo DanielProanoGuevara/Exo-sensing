@@ -88,24 +88,24 @@ void setupIntegrated(){
 
 // SPI settings for pmod DA2
 #ifdef DEBUG_DAC
-SPISettings mySettings(16000000, MSBFIRST, SPI_MODE0);
-void setupDAC() {
-  pinMode(sync, OUTPUT);  // CS
-  digitalWrite(sync, HIGH);
-  SPI.begin();
-  SPI.beginTransaction(mySettings);
-  SPI.endTransaction();
-}
+  SPISettings mySettings(16000000, MSBFIRST, SPI_MODE0);
+  void setupDAC() {
+    pinMode(sync, OUTPUT);  // CS
+    digitalWrite(sync, HIGH);
+    SPI.begin();
+    SPI.beginTransaction(mySettings);
+    SPI.endTransaction();
+  }
 
-void writeDAC(uint16_t val) {
-  // Enable DAC
-  SPI.begin();
-  digitalWrite(sync, LOW);
-  // Send data
-  SPI.transfer16(val);
-  // De-assert DAC
-  digitalWrite(sync, HIGH);
-  SPI.endTransaction();
-}
+  void writeDAC(uint16_t val) {
+    // Enable DAC
+    SPI.begin();
+    digitalWrite(sync, LOW);
+    // Send data
+    SPI.transfer16(val);
+    // De-assert DAC
+    digitalWrite(sync, HIGH);
+    SPI.endTransaction();
+  }
 #endif
 

@@ -57,12 +57,12 @@ float32_t cubicFit(float32_t x, float32_t params[]) {
 }
 
 float32_t vToTemp(float32_t v) {
-  float32_t aux;
-  aux = v + (1581 / 5050);
-  aux *= (607 / 130680);
+  float32_t aux = 0.0f;
+  aux = v + (1581.0f / 5050.0f);
+  aux *= (607.0f / 130680.0f);
   aux = logf(aux);
-  aux /= 3895.633;
-  aux -= (20 / 5463);
-  aux = (1 / aux);
+  aux /= 3895.633f;
+  aux -= (20.0f / 5463.0f);
+  aux = (1.0f / aux);
   return aux + 273.15f;
 }
