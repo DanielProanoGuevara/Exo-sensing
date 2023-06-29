@@ -126,8 +126,8 @@ void filterMAAll() {
 
   movingAverage((float32_t *)&MA_ring_buffer_FSR2, M, RB_i_FSR2, FSR2_y[0], &average_FSR[1], &min_FSR[1], &max_FSR[1]);
   movingAverage((float32_t *)&MA_ring_buffer_FSR3, M, RB_i_FSR3, FSR3_y[0], &average_FSR[2], &min_FSR[2], &max_FSR[2]);
-  movingAverage((float32_t *)&MA_ring_buffer_FSR4, M, RB_i_FSR4, FSR1_y[0], &average_FSR[3], &min_FSR[3], &max_FSR[3]);
-  movingAverage((float32_t *)&MA_ring_buffer_FSR5, M, RB_i_FSR5, FSR1_y[0], &average_FSR[4], &min_FSR[4], &max_FSR[4]);
+  movingAverage((float32_t *)&MA_ring_buffer_FSR4, M, RB_i_FSR4, FSR4_y[0], &average_FSR[3], &min_FSR[3], &max_FSR[3]);
+  movingAverage((float32_t *)&MA_ring_buffer_FSR5, M, RB_i_FSR5, FSR5_y[0], &average_FSR[4], &min_FSR[4], &max_FSR[4]);
   movingAverage((float32_t *)&MA_ring_buffer_NTC1, M, RB_i_NTC1, (3.3f * NTC1_raw)/(4096.0f), &average_NTC1, &min_NTC1, &max_NTC1);
 }
 
@@ -183,7 +183,7 @@ void updateVars(){
 
   
   // Communication Protocols
-#ifdef UART_EN
+#if UART_EN
   Serial.print("Mean_force:");
   Serial.print(interfaceingForceMean);
   Serial.print(",");
@@ -198,7 +198,7 @@ void updateVars(){
   Serial.print("Amb_baro_press:");
   Serial.println(amb_baro_pressure);
 #endif
-#ifdef BLE_EN
+#if BLE_EN
 
 #endif
 
@@ -211,7 +211,7 @@ void updateVars(){
 void setup() {
   // analog configuration
   analogReadResolution(12);
-  #ifdef DEBUG_PIN_EN
+  #if DEBUG_PIN_EN
     // Initializes the debug pins
     pinMode(DEBUG, OUTPUT);
     pinMode(DEBUG2, OUTPUT);
@@ -226,7 +226,7 @@ void setup() {
   setupIntegrated();
   // Initialize serial
   Serial.begin(115200);
-  #ifdef DEBUG_DAC
+  #if DEBUG_DAC
     // Initializes SPI for the DAC
     setupDAC();
   #endif
@@ -256,7 +256,7 @@ void loop() {
       filterMAAll();
 
       /***** DEBUG PLAY *****/
-      #ifdef DEBUG_DAC
+      #if DEBUG_DAC
       FSR1_filt = cubicFit(average_FSR[0], cubic_params_FSR);
 
       DAC_o = FSR1_filt * (4095.0f / 80.0f);
@@ -265,7 +265,7 @@ void loop() {
       writeDAC(DAC_o);
       #endif
     }
-    #ifdef DEBUG_PIN_EN
+    #if DEBUG_PIN_EN
     digitalWrite(DEBUG, LOW);
     #endif
   }
@@ -279,7 +279,7 @@ void loop() {
     updateVars();
 
     /****************************************************************************/
-    #ifdef DEBUG_PIN_EN
+    #if DEBUG_PIN_EN
     digitalWrite(DEBUG2, LOW);
     #endif
   }
@@ -295,7 +295,7 @@ extern "C" void TIMER4_IRQHandler_v(void) {
   if (NRF_TIMER4->EVENTS_COMPARE[0]) {
     NRF_TIMER4->EVENTS_COMPARE[0] = 0;  // Clear the event
 
-  #ifdef DEBUG_PIN_EN
+  #if DEBUG_PIN_EN
     digitalWrite(DEBUG, HIGH);
   #endif
     timerFlag = true;
@@ -309,7 +309,7 @@ extern "C" void RTC2_IRQHandler_v(void){
     NRF_RTC2->EVENTS_COMPARE[0] = 0; // Clear event 
     NRF_RTC2->TASKS_CLEAR = 1; // Clear register value
 
-  #ifdef DEBUG_PIN_EN
+  #if DEBUG_PIN_EN
     digitalWrite(DEBUG2, HIGH);
   #endif
     rtcFlag = true;
