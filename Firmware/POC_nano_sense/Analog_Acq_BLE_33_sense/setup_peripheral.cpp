@@ -48,7 +48,7 @@ void setupRTC() {
 
 
   // Start LFCLK (32kHz) crystal oscillator.
-  NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_RC << CLOCK_LFCLKSRC_SRC_Pos;
+  NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_RC << CLOCK_LFCLKSRC_SRC_Pos; // Select RC low power clock source
   NRF_CLOCK->LFRCMODE = 1; // Ultra-low power mode (ULP)
   NRF_CLOCK->TASKS_LFCLKSTART = 1; // Start the low power clock
   while(NRF_CLOCK->EVENTS_LFCLKSTARTED == 0); // Wait for the clock to initialize

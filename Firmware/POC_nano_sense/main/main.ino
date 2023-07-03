@@ -4,6 +4,18 @@
 #include <Arduino_LPS22HB.h>
 
 
+#include <nrfx.h>
+#include <nrf.h>
+#include <nrf_timer.h>
+#include <nrf_rtc.h>
+
+
+volatile bool rtcFlag = false;
+
+
+
+
+
 // Create BLE services
 BLEService Environmental_Sensing_Service("181A");
 
@@ -20,11 +32,67 @@ BLEDescriptor TemperatureDescriptor("2901", "Temperature Value");
 BLEDescriptor PressureDescriptor("2901", "Pressure Value");
 BLEDescriptor HumidityDescriptor("2901", "Humidity Value");
 
-// Global variables
-long previousMillis = 0;
+
+
+
+
+
+
+
+
+// Initialize the RTC
+void setupRTC() {
+  // Disable interrupts before configuring
+  NRF_RTC2->INTENCLR = RTC_INTENCLR_COMPARE0_Clear << RTC_INTENCLR_COMPARE0_Pos;
+
+
+  // Start LFCLK (32kHz) crystal oscillator.
+  NRF_CLOCK->LFCLKSRC = CLOCK_LFCLKSRC_SRC_RC << CLOCK_LFCLKSRC_SRC_Pos; // Select RC low power clock source
+  NRF_CLOCK->LFRCMODE = 1; // Ultra-low power mode (ULP)
+  NRF_CLOCK->TASKS_LFCLKSTART = 1; // Start the low power clock
+  while(NRF_CLOCK->EVENTS_LFCLKSTARTED == 0); // Wait for the clock to initialize
+  NRF_CLOCK->EVENTS_LFCLKSTARTED = 0; // Reset the events register
+
+  // Stop and clear the timer before using it
+  NRF_RTC2->TASKS_STOP = 1;
+  NRF_RTC2->TASKS_CLEAR = 1;
+
+  // 8 Hz timer period (Maximum)
+  NRF_RTC2->PRESCALER = 0xFFF;
+  // Compare value at 1 second, i.e. every 8 ticks
+  NRF_RTC2->CC[0] = 0X8;
+  // Enable events on tick 
+  NRF_RTC2->EVTENSET = RTC_EVTENSET_COMPARE0_Set << RTC_EVTENSET_COMPARE0_Pos;
+  // Enable IRQ on TICK
+  NRF_RTC2->INTENSET = RTC_INTENSET_COMPARE0_Set << RTC_INTENSET_COMPARE0_Pos;
+
+  // Set interrupt priority
+  NVIC_SetPriority(RTC2_IRQn, 1ul);
+  // Enable the interrupt in the NVIC
+  NVIC_EnableIRQ(RTC2_IRQn);
+
+  // Start the RTC
+  NRF_RTC2->TASKS_START = 1;
+}
+
+
+void setupLowPower(){
+  digitalWrite(LED_PWR, LOW); // "ON" LED turned off:
+  digitalWrite(PIN_ENABLE_SENSORS_3V3, LOW); //PIN_ENABLE_SENSORS_3V3 set to LOW:
+  digitalWrite(PIN_ENABLE_I2C_PULLUP, LOW); // PIN_ENABLE_I2C_PULLUP set to LOW:
+}
+
+
+
+
+
+
+
+
 
 
 void setup() {
+  setupRTC();
   Serial.begin(9600);
   while(!Serial); // Wait until serial is availabe
   
@@ -68,6 +136,8 @@ void setup() {
   Ambient_Pressure.writeValue(BARO.readPressure());
   Ambient_Humidity.writeValue(HS300x.readHumidity());
 
+  setupLowPower();
+
   // start advertising
   BLE.advertise();
 
@@ -75,29 +145,19 @@ void setup() {
 }
 
 void loop() {
-
-
-  // check for BLE central
-  BLEDevice central = BLE.central();
-
-  // if central is connected to peripheral:
-  if (central){
-    Serial.print("Connected to central: ");
-    // Print central's MAC address:
-    Serial.println(central.address());
-
-    // Poll/transmit only when connected:
-    while(central.connected()){
-        long currentMillis = millis();
-        // if 5s has passed, check again the sensors
-        if (currentMillis - previousMillis >= 5000){
-          previousMillis = currentMillis;
-          updatePressure();
-          updateTemperature();
-          updateHumidity();
-        }
-    }
+  BLE.poll();
+  if (rtcFlag) {
+    rtcFlag = false;
+    digitalWrite(PIN_ENABLE_SENSORS_3V3, HIGH); //PIN_ENABLE_SENSORS_3V3 set to HIGH:
+    digitalWrite(PIN_ENABLE_I2C_PULLUP, HIGH); // PIN_ENABLE_I2C_PULLUP set to HIGH:
+    updatePressure();
+    updateTemperature();
+    updateHumidity();
+    
   }
+  __SEV();
+  __WFE();
+  __WFE();
 }
 
 
@@ -123,4 +183,21 @@ void updateHumidity(){
   Serial.print(humidity);
   Serial.println(" %");
   Ambient_Humidity.writeValue(humidity);
+}
+
+
+
+
+
+// RTC interrupt service routine
+extern "C" void RTC2_IRQHandler_v(void){
+  // Check if the interrupt was triggered by a tick event
+  if (NRF_RTC2->EVENTS_COMPARE[0]) {
+    NRF_RTC2->EVENTS_COMPARE[0] = 0; // Clear event 
+    NRF_RTC2->TASKS_CLEAR = 1; // Clear register value
+    __SEV(); // to avoid race condition
+
+    rtcFlag = true;
+    // Use time control below this
+  }
 }

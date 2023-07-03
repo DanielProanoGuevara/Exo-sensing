@@ -295,6 +295,8 @@ extern "C" void TIMER4_IRQHandler_v(void) {
   // Check if the interrupt was triggered by CC[0]
   if (NRF_TIMER4->EVENTS_COMPARE[0]) {
     NRF_TIMER4->EVENTS_COMPARE[0] = 0;  // Clear the event
+    NRF_TIMER4->TASKS_CLEAR = 1; // Clear register value
+    __SEV(); // to avoid race condition
 
   #if DEBUG_PIN_EN
     digitalWrite(DEBUG, HIGH);
@@ -309,6 +311,7 @@ extern "C" void RTC2_IRQHandler_v(void){
   if (NRF_RTC2->EVENTS_COMPARE[0]) {
     NRF_RTC2->EVENTS_COMPARE[0] = 0; // Clear event 
     NRF_RTC2->TASKS_CLEAR = 1; // Clear register value
+    __SEV(); // to avoid race condition
 
   #if DEBUG_PIN_EN
     digitalWrite(DEBUG2, HIGH);
