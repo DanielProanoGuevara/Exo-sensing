@@ -183,7 +183,7 @@ void updateVars(){
 
   
   // Communication Protocols
-#if UART_EN
+  #if UART_EN
   Serial.print("Mean_force:");
   Serial.print(interfaceingForceMean);
   Serial.print(",");
@@ -197,14 +197,12 @@ void updateVars(){
   Serial.print(amb_humidity);
   Serial.print("Amb_baro_press:");
   Serial.println(amb_baro_pressure);
-#endif
-#if BLE_EN
+  #endif
+  #if BLE_EN
 
-#endif
+  #endif
 
 }
-
-
 
 
 
@@ -224,8 +222,12 @@ void setup() {
   setupRTC();
   // Initialize integrated sensors
   setupIntegrated();
-  // Initialize serial
-  Serial.begin(115200);
+  
+  #if UART_EN
+    // Initialize serial
+    Serial.begin(115200);
+    while(!Serial);
+  #endif
   #if DEBUG_DAC
     // Initializes SPI for the DAC
     setupDAC();
@@ -257,12 +259,12 @@ void loop() {
 
       /***** DEBUG PLAY *****/
       #if DEBUG_DAC
-      FSR1_filt = cubicFit(average_FSR[0], cubic_params_FSR);
+        FSR1_filt = cubicFit(average_FSR[0], cubic_params_FSR);
 
-      DAC_o = FSR1_filt * (4095.0f / 80.0f);
-      //DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
+        DAC_o = FSR1_filt * (4095.0f / 80.0f);
+        //DAC_o = FSR1_y[0] * (4095.0f / 3.3f);
 
-      writeDAC(DAC_o);
+        writeDAC(DAC_o);
       #endif
     }
     #if DEBUG_PIN_EN
@@ -274,8 +276,7 @@ void loop() {
   if(rtcFlag){
     rtcFlag = false;
 
-    //publishValues();
-    /***********************Send values over Serial Plotter**********************/
+    /***********************Send values**********************/
     updateVars();
 
     /****************************************************************************/
