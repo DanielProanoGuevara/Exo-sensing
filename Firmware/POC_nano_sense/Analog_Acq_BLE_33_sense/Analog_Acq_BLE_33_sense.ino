@@ -181,7 +181,11 @@ void updateVars(){
   amb_humidity = HS300x.readHumidity();
   amb_baro_pressure = BARO.readPressure();
 
-  
+  // Check if the low power library is included
+  #ifdef LOWPOWER_INCLUDED
+  digitalWrite(PIN_ENABLE_SENSORS_3V3, HIGH); //PIN_ENABLE_SENSORS_3V3 set to HIGH:
+  digitalWrite(PIN_ENABLE_I2C_PULLUP, HIGH); // PIN_ENABLE_I2C_PULLUP set to HIGH:  
+  #endif
   // Communication Protocols
   #if UART_EN
   Serial.print("Mean_force:");
