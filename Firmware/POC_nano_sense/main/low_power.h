@@ -1,10 +1,8 @@
-#ifndef LOWPOWER_H
-#define LOWPOWER_H
+#ifndef LOW_POWER_H
+#define LOW_POWER_H
 
 /*************** Includes ************/
 #include <Arduino.h>
-
-#define LOWPOWER_INCLUDED
 
 void setupLowPower();
 
