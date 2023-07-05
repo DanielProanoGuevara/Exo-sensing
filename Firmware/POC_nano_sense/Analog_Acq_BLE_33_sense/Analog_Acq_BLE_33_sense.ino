@@ -128,7 +128,7 @@ void filterMAAll() {
   movingAverage((float32_t *)&MA_ring_buffer_FSR3, M, RB_i_FSR3, FSR3_y[0], &average_FSR[2], &min_FSR[2], &max_FSR[2]);
   movingAverage((float32_t *)&MA_ring_buffer_FSR4, M, RB_i_FSR4, FSR4_y[0], &average_FSR[3], &min_FSR[3], &max_FSR[3]);
   movingAverage((float32_t *)&MA_ring_buffer_FSR5, M, RB_i_FSR5, FSR5_y[0], &average_FSR[4], &min_FSR[4], &max_FSR[4]);
-  movingAverage((float32_t *)&MA_ring_buffer_NTC1, M, RB_i_NTC1, (3.3f * NTC1_raw)/(4096.0f), &average_NTC1, &min_NTC1, &max_NTC1);
+  movingAverage((float32_t *)&MA_ring_buffer_NTC1, M, RB_i_NTC1, NTC1_raw * (3.3f / 4096.0f) , &average_NTC1  , &min_NTC1  , &max_NTC1);
 }
 
 
@@ -163,6 +163,7 @@ void updateVars(){
   arm_min_f32(min_FSR, 5, &FSR_min, &idx);
   arm_max_no_idx_f32(max_FSR, 5, &FSR_max);
 
+  
   // Voltage to force conversion
   interfaceingForceMean = cubicFit(FSR_mean, cubic_params_FSR);
   interfaceingForceMin = cubicFit(FSR_min, cubic_params_FSR);

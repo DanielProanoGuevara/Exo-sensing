@@ -35,7 +35,7 @@ void setup() {
 }
 
 void loop() {
-  poll_BLE();
+  
   if (rtcFlag) {
     rtcFlag = false;
     #ifdef LOW_POWER_H
@@ -49,6 +49,7 @@ void loop() {
   __SEV();
   __WFE();
   __WFE();  
+  poll_BLE();
 }
 
 
