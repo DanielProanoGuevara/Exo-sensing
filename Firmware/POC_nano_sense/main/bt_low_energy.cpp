@@ -9,25 +9,25 @@ BLEService Comfort_Service("00000000-0000-0000-0002-000000000000");
 
 /*********************** Create Characteristics ****************************/
 //  Environmental Sensing Temperature, read and notify
-BLEByteCharacteristic Ambient_Temperature("2A6E", BLERead | BLENotify);
+BLECharacteristic Ambient_Temperature("2A6E", BLERead | BLENotify, 2);
 //  Environmental Sensing Pressure, read and notify
-BLEByteCharacteristic Ambient_Pressure("2A6D", BLERead | BLENotify);
+BLECharacteristic Ambient_Pressure("2A6D", BLERead | BLENotify, 4);
 //  Environmental Sensing Humidity, read and notify
-BLEByteCharacteristic Ambient_Humidity("2A6F", BLERead | BLENotify);
+BLECharacteristic Ambient_Humidity("2A6F", BLERead | BLENotify, 2);
 
 // Interfacing Temperature, read and notify
-BLEByteCharacteristic Body_Temp_Min("00000000-0000-0000-0001-100000000001", BLERead | BLENotify);
-BLEByteCharacteristic Body_Temp_Avg("00000000-0000-0000-0001-100000000002", BLERead | BLENotify);
-BLEByteCharacteristic Body_Temp_Max("00000000-0000-0000-0001-100000000003", BLERead | BLENotify);
+BLECharacteristic Body_Temp_Min("00000000-0000-0000-0001-100000000001", BLERead | BLENotify, 2);
+BLECharacteristic Body_Temp_Avg("00000000-0000-0000-0001-100000000002", BLERead | BLENotify, 2);
+BLECharacteristic Body_Temp_Max("00000000-0000-0000-0001-100000000003", BLERead | BLENotify, 2);
 // Interfacing Force, read and notify
-BLEByteCharacteristic Interface_Force_Min("00000000-0000-0000-0001-200000000001", BLERead | BLENotify);
-BLEByteCharacteristic Interface_Force_Avg("00000000-0000-0000-0001-200000000002", BLERead | BLENotify);
-BLEByteCharacteristic Interface_Force_Max("00000000-0000-0000-0001-200000000003", BLERead | BLENotify);
+BLECharacteristic Interface_Force_Min("00000000-0000-0000-0001-200000000001", BLERead | BLENotify, 2);
+BLECharacteristic Interface_Force_Avg("00000000-0000-0000-0001-200000000002", BLERead | BLENotify, 2);
+BLECharacteristic Interface_Force_Max("00000000-0000-0000-0001-200000000003", BLERead | BLENotify, 2);
 // Device ON time, read and notify
-BLEByteCharacteristic ON_time("00000000-0000-0000-0001-300000000001", BLERead | BLENotify);
+BLECharacteristic ON_time("00000000-0000-0000-0001-300000000001", BLERead | BLENotify, 4);
 
 // Predicted Comfort Level, read and notify
-BLEByteCharacteristic Comfort("00000000-0000-0000-0002-100000000001", BLERead | BLENotify);
+BLECharacteristic Comfort("00000000-0000-0000-0002-100000000001", BLERead | BLENotify, 1);
 
 
 /*************************************** Create descriptors **********************************************/
@@ -106,17 +106,17 @@ void setupBluetoothLE(){
   BLE.addService(Comfort_Service);
 
   // set the initial value for the characteristics
-  Ambient_Temperature.writeValue(0x0000);
-  Ambient_Pressure.writeValue(0x00000000);
-  Ambient_Humidity.writeValue(0x0000);
-  Body_Temp_Min.writeValue(0x0000);
-  Body_Temp_Avg.writeValue(0x0000);
-  Body_Temp_Max.writeValue(0x0000);
-  Interface_Force_Min.writeValue(0x0000);
-  Interface_Force_Avg.writeValue(0x0000);
-  Interface_Force_Max.writeValue(0x0000);
-  ON_time.writeValue(0x00000000);
-  Comfort.writeValue(0x00);
+  Ambient_Temperature.writeValue((int16_t)0);
+  Ambient_Pressure.writeValue((uint32_t)0);
+  Ambient_Humidity.writeValue((uint16_t)0);
+  Body_Temp_Min.writeValue((int16_t)0);
+  Body_Temp_Avg.writeValue((int16_t)0);
+  Body_Temp_Max.writeValue((int16_t)0);
+  Interface_Force_Min.writeValue((uint16_t)0);
+  Interface_Force_Avg.writeValue((uint16_t)0);
+  Interface_Force_Max.writeValue((uint16_t)0);
+  ON_time.writeValue((uint32_t)0);
+  Comfort.writeValue((uint8_t)0);
   
   // start advertising
   BLE.advertise();
@@ -127,17 +127,50 @@ void poll_BLE(){
   BLE.poll();
 }
 
-void updateTemperature(){
-  int temperature = HS300x.readTemperature();
+void updateAmbTemperature(float32_t AmbTemp){
+  int16_t temperature = AmbTemp * 100;
   Ambient_Temperature.writeValue(temperature);
 }
-
-void updatePressure(){
-  int pressure = BARO.readPressure();
+void updateAmbPressure(float32_t AmbPres){
+  uint32_t pressure = AmbPres * 10000;
   Ambient_Pressure.writeValue(pressure);
 }
-
-void updateHumidity(){
-  int humidity = HS300x.readHumidity();
+void updateAmbHumidity(float32_t AmbHum){
+  uint16_t humidity = AmbHum * 100;
   Ambient_Humidity.writeValue(humidity);
 }
+
+void updateMinBodyTemp(float32_t T){
+  int16_t minT = T * 100;
+  Body_Temp_Min.writeValue(minT);
+}
+void updateAvgBodyTemp(float32_t T){
+  int16_t avgT = T * 100;
+  Body_Temp_Avg.writeValue(avgT);
+}
+void updateMaxBodyTemp(float32_t T){
+  int16_t maxT = T * 100;
+  Body_Temp_Max.writeValue(maxT);
+}
+
+void updateMinForce(float32_t F){
+  uint16_t minF = F * 100;
+  Interface_Force_Min.writeValue(minF);
+}
+void updateAvgForce(float32_t F){
+  uint16_t avgF = F * 100;
+  Interface_Force_Avg.writeValue(avgF);
+}
+void updateMaxForce(float32_t F){
+  uint16_t maxF = F * 100;
+  Interface_Force_Max.writeValue(maxF);
+}
+
+void updateONTime(uint32_t time){
+  ON_time.writeValue(time);
+}
+
+void updateComfort(uint8_t comf){
+  Comfort.writeValue(comf);
+}
+
