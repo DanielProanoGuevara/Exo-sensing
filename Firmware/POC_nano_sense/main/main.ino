@@ -15,6 +15,7 @@ uint16_t DAC_o = 0;
 // Interrupt flags
 volatile bool timerFlag = false;
 volatile bool rtcFlag = false;
+volatile uint32_t seconds = 0;
 
 // Auxiliar variable
 uint32_t idx = 0;
@@ -210,6 +211,7 @@ void updateVars(){
   updateMaxForce(interfaceingForceMax);
   
   /**************************UPDATE ON TIME AND COMFORT**********************/
+  updateONTime(seconds);
 }
 
 
@@ -336,7 +338,12 @@ extern "C" void RTC2_IRQHandler_v(void){
     NRF_RTC2->TASKS_CLEAR = 1; // Clear register value
     __SEV(); // to avoid race condition
 
+    #if DEBUG_PIN_EN
+      digitalWrite(DEBUG2, HIGH);
+    #endif
+
     rtcFlag = true;
     // Use time control below this
+    seconds++;
   }
 }

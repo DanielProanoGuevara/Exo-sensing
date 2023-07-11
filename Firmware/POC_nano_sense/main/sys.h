@@ -14,7 +14,7 @@
 
 #define DEBUG_PIN_EN 0
 #define DEBUG_DAC 0
-#define UART_EN 1
+#define UART_EN 0
 
 
 #endif
