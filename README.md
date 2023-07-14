@@ -16,14 +16,14 @@ Data processing for exo-sensing project
 - - Oversampling at 200 sps
 - - IIR filter
 - - Decimation factor 5
-- - Moving average, minimum, and maximum. Window size = 20
+- - Moving average, minimum, and maximum. Window size = 40
 - - Cubic regression model **needs to be adjusted with new board**
 
 - 1 NTC sensor
 - - Acquisition under interruption
 - - Oversampling at 200 sps
 - - Decimation factor 5
-- - Moving average, minimum, and maximum. Window size = 20
+- - Moving average, minimum, and maximum. Window size = 40
 - - Model adjusted conversion **needs calibration and comparison with a standard instrument**
 
 - Debug
@@ -46,6 +46,12 @@ Data processing for exo-sensing project
 - UART Communication
 - - Triggered by RTC every second
 - - Sends the most relevant data
+- - Can be disabled from sys.h
+
+- Fuzzy Inference
+- - Based on eFLL library
+- - Correlate physiological data with pshychological information for prediction
+- - Expanded simulation available in processing
 
 
 Development on Arduino IDE 2.0
