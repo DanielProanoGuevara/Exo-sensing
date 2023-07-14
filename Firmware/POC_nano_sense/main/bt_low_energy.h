@@ -24,6 +24,6 @@ void updateMaxForce(float32_t F);
 
 void updateONTime(uint32_t time);
 
-void updateComfort(uint8_t comf);
+void updateComfort(float comf);
 
 #endif

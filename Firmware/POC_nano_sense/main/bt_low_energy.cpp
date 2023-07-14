@@ -170,7 +170,8 @@ void updateONTime(uint32_t time){
   ON_time.writeValue(time);
 }
 
-void updateComfort(uint8_t comf){
-  Comfort.writeValue(comf);
+void updateComfort(float comf){
+  uint8_t comfort = comf * 10;
+  Comfort.writeValue(comfort);
 }
 
