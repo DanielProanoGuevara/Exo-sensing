@@ -12,46 +12,47 @@ Data processing for exo-sensing project
 ## Dev:
 
 - 5 FSR sensors 
-- - Acquisition under interruption
-- - Oversampling at 200 sps
-- - IIR filter
-- - Decimation factor 5
-- - Moving average, minimum, and maximum. Window size = 40
-- - Cubic regression model **needs to be adjusted with new board**
+    - Acquisition under interruption
+    - Oversampling at 200 sps
+    - IIR filter
+    - Decimation factor 5
+    - Moving average, minimum, and maximum. Window size = 40
+    - Cubic regression model **needs to be adjusted with new board**
 
 - 1 NTC sensor
-- - Acquisition under interruption
-- - Oversampling at 200 sps
-- - Decimation factor 5
-- - Moving average, minimum, and maximum. Window size = 40
-- - Model adjusted conversion **needs calibration and comparison with a standard instrument**
+    - Acquisition under interruption
+    - Oversampling at 200 sps
+    - Decimation factor 5
+    - Moving average, minimum, and maximum. Window size = 40
+    - Model adjusted conversion **needs calibration and comparison with a standard instrument**
+        - Equation-based model working good enough
 
 - Debug
-- - GPIO 2 and 3 used to measure processing times
-- - DAC availability to test the filters and analog acquisition. Uses SPI
+    - GPIO 2 and 3 used to measure processing times
+    - DAC availability to test the filters and analog acquisition. Uses SPI
 
 - Humidity and Temperature Sensor (Integrated) HS3003
-- - Reading sensor and printing on serial
-- - Polling data on BLE
+    - Reading sensor and printing on serial
+    - Polling data on BLE
 
 - Pressure Sensor (Integrated) LPS22HB
-- - Reading sensor and printing on serial
-- -  Polling data on BLE
+    - Reading sensor and printing on serial
+    -  Polling data on BLE
 
 - BLE Peripheral
-- - Triggered by RTC every second
-- - Created services for sensor, comfort, and environmental data
-- - Working under Poll mode due to facility in library usage
+    - Triggered by RTC every second
+    - Created services for force and body temperature sensors, comfort, and environmental data
+    - Working under Poll mode due to facility in library usage
 
 - UART Communication
-- - Triggered by RTC every second
-- - Sends the most relevant data
-- - Can be disabled from sys.h
+    - Triggered by RTC every second
+    - Sends the most relevant data
+    - Can be disabled from sys.h
 
 - Fuzzy Inference
-- - Based on eFLL library
-- - Correlate physiological data with pshychological information for prediction
-- - Expanded simulation available in processing
+    - Based on eFLL library
+    - Correlate physiological data with pshychological information for prediction
+    - Expanded simulation available in processing
 
 
 Development on Arduino IDE 2.0
