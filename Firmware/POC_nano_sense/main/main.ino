@@ -316,9 +316,9 @@ void loop() {
     #endif
   } 
 
-  __SEV();
   __WFE();
-  __WFE();  
+  __SEV();
+  __WFE(); 
   poll_BLE();
 }
 
